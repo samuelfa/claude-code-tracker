@@ -18,7 +18,7 @@ if [ -f "$CLAUDE_CODE_STATUSLINE_CONFIG" ]; then
 fi
 
 # Get tracker status output
-TRACKER_OUTPUT=$(work_status)
+TRACKER_OUTPUT=$(tracker status)
 
 # Initialize combined output with tracker output
 COMBINED_OUTPUT="$TRACKER_OUTPUT"

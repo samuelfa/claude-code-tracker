@@ -82,7 +82,7 @@ gh pr create
 - `work_view [TICKET]` - View raw ticket data
 - `jira_open [TICKET]` - Open ticket in browser
 - `set_ticket_prefix ABC` - Set default ticket prefix
-- `work_status` - Test status line output (for debugging)
+- `tracker status` - Display the current work tracking status (same as Claude Code status line)
 
 ## Claude Code Settings Location
 
@@ -136,6 +136,13 @@ Supported branch patterns (example for default regex `[A-Z]+-[0-9]+`):
 -   `feature/w2021/ABC-789-foo`
 
 Pattern: One or more uppercase letters, followed by a hyphen, then one or more numbers (e.g., ABC-123, XYZ-789).
+
+## Future Enhancements
+
+We are always looking to improve the Claude Code Tracker. Here are some potential future enhancements:
+
+-   **Automatic Token Usage Recording**: Explore deeper integrations with Claude Code to automatically track and record API token usage, eliminating the need for manual `work_add_tokens` calls. This would likely involve building a dedicated Claude Code extension or a background monitoring service.
+-   **Command Consolidation**: Consolidate all user-facing commands (e.g., `work_start`, `work_end`, `work_summary`, `work_list`, `work_view`, `set_jira_base_url`, `set_jira_ticket_regex`, `jira_open`, `work_add_tokens`) under the main `tracker` CLI for a more consistent and conflict-free command-line experience (e.g., `tracker start`, `tracker end`, `tracker summary`). This would streamline command discovery and usage.
 
 ## Windows Support
 

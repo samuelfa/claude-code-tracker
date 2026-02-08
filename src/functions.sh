@@ -314,18 +314,97 @@ work_end() {
 # Display Functions
 # ============================================================================
 
-work_status() {
+_tracker_status_command() {
+
     local ticket=$(get_current_ticket)
 
+
+
     if ! git rev-parse --git-dir > /dev/null 2>&1; then
+
         echo ""
+
         return
+
     fi
 
+
+
     if [ -z "$ticket" ]; then
+
         echo "No Jira Ticket" # More concise message for status line
+
         return
+
     fi
+
+
+
+    local ticket_file=$(get_ticket_file "$ticket")
+
+
+
+    if [ ! -f "$ticket_file" ]; then
+
+        echo "💤 $ticket (no activity)"
+
+        return
+
+    fi
+
+
+
+    local active_session_count=$(jq '[.sessions[] | select(.active == true)] | length' "$ticket_file" 2>/dev/null)
+
+
+
+    if [ "$active_session_count" -eq 0 ]; then
+
+        echo "💤 $ticket (session ended)"
+
+        return
+
+    fi
+
+
+
+    local session_start=$(jq -r '.sessions[] | select(.active == true) | .session_start' "$ticket_file" | tail -1)
+
+    local current_tokens=$(jq -r '.sessions[] | select(.active == true) | .tokens' "$ticket_file" | tail -1)
+
+    local now=$(get_timestamp)
+
+    local duration=$((now - session_start))
+
+
+
+    local hours=$((duration / 3600))
+
+    local minutes=$(((duration % 3600) / 60))
+
+
+
+    local time_display
+
+    if [ $hours -eq 0 ]; then
+
+        time_display="${minutes}m"
+
+    else
+
+        time_display="${hours}h ${minutes}m"
+
+    fi
+
+
+
+    local token_display=$(format_tokens $current_tokens)
+
+
+
+    echo "$ticket ⏱️  $time_display 🪙 $token_display"
+
+}i
 
     local ticket_file=$(get_ticket_file "$ticket")
 
@@ -698,11 +777,15 @@ tracker() {
         "init")
             _tracker_init_repo "$@"
             ;;
+        "status")
+            _tracker_status_command "$@"
+            ;;
         # Add other subcommands here as needed
         *)
             echo "Usage: tracker <subcommand>"
             echo "Subcommands:"
             echo "  init      - Initialize Git hooks for the current repository"
+            echo "  status    - Display the current work tracking status"
             # Add descriptions for other subcommands here
             return 1
             ;;

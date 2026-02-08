@@ -177,7 +177,30 @@ jira_open  # Opens current ticket
 
 Configure your Jira URL using the `set_jira_base_url` command.
 
+## Utility Commands
+
+#### `tracker init`
+Initialize Git hooks for the current repository. This ensures that the `prepare-commit-msg` hook (for automatic Jira ticket in commit messages) and `post-checkout` hook (for automatic session management on branch changes) are active in your local Git repository.
+
+```bash
+cd /path/to/your/git/repo
+tracker init
+# ✓ Git 'prepare-commit-msg' hook installed for current repository: .git/hooks/prepare-commit-msg
+```
+
+This command is useful for existing repositories that were cloned *before* the Claude Code Tracker was installed globally, or if you need to re-initialize your Git hooks for any reason.
+
+#### `tracker status`
+Display the current work tracking status. This is the same output as shown in the Claude Code status line, providing a quick way to check your session details directly in the terminal.
+
+```bash
+tracker status
+# EDE-123 ⏱️  1h 15m 🪙 5k
+```
+
 ## Status Line States
+
+The following are examples of the output you might see from `tracker status` in your terminal, or what is displayed in the Claude Code status line:
 
 ### Active Session
 ```
