@@ -118,7 +118,7 @@ get_current_ticket() {
     fi
     
     local jira_regex=$(get_jira_ticket_regex)
-    echo "$branch" | sed -E "s/.*(^|[^[:alnum:]])($jira_regex)([^[:alnum:]]|$).*/\2/p" | head -1
+    echo "$branch" | sed -E -n "s/.*(^|[^[:alnum:]])($jira_regex)([^[:alnum:]]|$).*/\2/p" | head -1
 }
 
 get_ticket_file() {
@@ -202,6 +202,9 @@ work_start() {
 
     local ticket_file=$(get_ticket_file "$ticket")
     local now=$(get_timestamp)
+
+    # Ensure the directory for the ticket file exists
+    mkdir -p "$(dirname "$ticket_file")"
 
     if [ -f "$ticket_file" ]; then
         # Check if there's an active session using jq
