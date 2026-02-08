@@ -331,6 +331,7 @@ If you're using Claude Code and want to manually log token usage:
 # After a Claude Code session
 work_add_tokens 5000
 ```
+The Claude Code Tracker provides the *storage and display* for token usage. Currently, the recording of Claude Code API tokens is a manual process using the `work_add_tokens` command. There is no built-in mechanism within the tracker's core scripts for *automatically* fetching and recording token usage directly from the Claude Code API. Automatic integration would typically require an external script or a Claude Code extension.
 
 ### Exporting Data
 
