@@ -43,10 +43,11 @@ CLAUDE_SCRIPTS_DIR="$CLAUDE_DIR/scripts"
 
 mkdir -p "$CLAUDE_SCRIPTS_DIR"
 
-# Copy wrapper script
-cp "$INSTALL_DIR/claude_code_wrapper.sh" "$CLAUDE_SCRIPTS_DIR/claude_code_wrapper.sh"
+# Copy wrapper script and configure INSTALL_DIR
+cp src/claude_code_wrapper.sh "$CLAUDE_SCRIPTS_DIR/claude_code_wrapper.sh"
+sed -i "s|INSTALL_DIR=\"\$(dirname \"\$(dirname \"\$(readlink -f \"\$0\")\")\")\"|INSTALL_DIR=\"$INSTALL_DIR\"|" "$CLAUDE_SCRIPTS_DIR/claude_code_wrapper.sh"
 chmod +x "$CLAUDE_SCRIPTS_DIR/claude_code_wrapper.sh"
-echo "✓ Copied Claude Code wrapper script to $CLAUDE_SCRIPTS_DIR"
+echo "✓ Configured and copied Claude Code wrapper script to $CLAUDE_SCRIPTS_DIR"
 
 # Configure Claude Code settings.json
 CLAUDE_CODE_SETTINGS="$HOME/.claude/settings.json"

@@ -42,7 +42,7 @@ if [ "$isbranch" -eq 1 ]; then
         local prev_ticket_file=$(get_ticket_file "$prev_ticket")
         if [ -f "$prev_ticket_file" ]; then
             local prev_active_session_count=$(jq '[.sessions[] | select(.active == true)] | length' "$prev_ticket_file" 2>/dev/null)
-            if [ "$prev_active_session_count" -gt 0 ]; then
+            if (( prev_active_session_count > 0 )); then
                 echo "🔄 Branch changed via checkout. Ending active session for $prev_ticket..."
                 work_end "$prev_ticket"
             fi

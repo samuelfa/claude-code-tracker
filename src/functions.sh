@@ -118,7 +118,10 @@ get_current_ticket() {
     fi
     
     local jira_regex=$(get_jira_ticket_regex)
-    echo "$branch" | sed -E -n "s/.*(^|[^[:alnum:]])($jira_regex)([^[:alnum:]]|$).*/\2/p" | head -1
+    # Strip leading/trailing double quotes from the regex
+    jira_regex="${jira_regex%\"}"
+    jira_regex="${jira_regex#\"}"
+    echo "$branch" | grep -oE "$jira_regex" | head -1
 }
 
 get_ticket_file() {
@@ -252,7 +255,7 @@ work_add_tokens() {
     local active_session_index
     active_session_index=$(jq '[.sessions[] | select(.active == true)] | length - 1' "$ticket_file" 2>/dev/null)
 
-    if [ "$active_session_index" -ge 0 ]; then
+    if (( active_session_index >= 0 )); then
         local current_tokens
         current_tokens=$(jq -r ".sessions[$active_session_index].tokens" "$ticket_file")
 
@@ -302,7 +305,7 @@ work_end() {
     local hours=$((duration / 3600))
     local minutes=$(((duration % 3600) / 60))
 
-    echo "✅ Session ended for $ticket"
+    echo "✅ Session ended for $target_ticket"
     echo "   This session: ${hours}h ${minutes}m, $tokens tokens"
 
     work_summary
@@ -320,7 +323,7 @@ work_status() {
     fi
 
     if [ -z "$ticket" ]; then
-        echo "⚠️  No ticket in branch name"
+        echo "No Jira Ticket" # More concise message for status line
         return
     fi
 
@@ -338,10 +341,8 @@ work_status() {
         return
     fi
 
-    local session_start
-    session_start=$(jq -r '.sessions[] | select(.active == true) | .session_start' "$ticket_file" | tail -1)
-    local current_tokens
-    current_tokens=$(jq -r '.sessions[] | select(.active == true) | .tokens' "$ticket_file" | tail -1)
+    local session_start=$(jq -r '.sessions[] | select(.active == true) | .session_start' "$ticket_file" | tail -1)
+    local current_tokens=$(jq -r '.sessions[] | select(.active == true) | .tokens' "$ticket_file" | tail -1)
     local now=$(get_timestamp)
     local duration=$((now - session_start))
 
@@ -581,7 +582,7 @@ auto_work_detect() {
                 local prev_ticket_file=$(get_ticket_file "$prev_ticket")
                 if [ -f "$prev_ticket_file" ]; then
                     local prev_active_session_count=$(jq '[.sessions[] | select(.active == true)] | length' "$prev_ticket_file" 2>/dev/null)
-                    if [ "$prev_active_session_count" -gt 0 ]; then
+                    if (( prev_active_session_count > 0 )); then
                         echo "🔄 Moved out of Git repo. Ending active session for $prev_ticket..."
                         work_end "$prev_ticket"
                     fi
@@ -602,7 +603,7 @@ auto_work_detect() {
                     local prev_ticket_file=$(get_ticket_file "$prev_ticket")
                     if [ -f "$prev_ticket_file" ]; then
                         local prev_active_session_count=$(jq '[.sessions[] | select(.active == true)] | length' "$prev_ticket_file" 2>/dev/null)
-                        if [ "$prev_active_session_count" -gt 0 ]; then
+                        if (( prev_active_session_count > 0 )); then
                             echo "🔄 Directory changed to new repo/branch. Ending active session for $prev_ticket..."
                             work_end "$prev_ticket"
                         fi
