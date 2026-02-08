@@ -1,0 +1,71 @@
+#!/bin/bash
+# .git/hooks/post-checkout - Claude Code Tracker hook
+
+# This hook is invoked after a git checkout command has successfully updated the working tree.
+# It is used here to detect branch changes and manage work sessions.
+
+# Arguments:
+# $1: oldrev (the commit ID of the previous HEAD)
+# $2: newrev (the commit ID of the new HEAD)
+# $3: isbranch (1 if a branch checkout, 0 if a file checkout)
+
+# Source the main functions script
+# The path to functions.sh relative to the hook script
+FUNCTIONS_FILE="$HOME/.claude_code_tracker/functions.sh"
+
+# Check if functions.sh exists and source it
+if [ -f "$FUNCTIONS_FILE" ]; then
+    . "$FUNCTIONS_FILE"
+else
+    # Fallback if sourcing fails - basic error handling
+    echo "Claude Code Tracker: Error: Could not source $FUNCTIONS_FILE from post-checkout hook." >&2
+    exit 1
+fi
+
+oldrev="$1"
+newrev="$2"
+isbranch="$3"
+
+# Only react to branch checkouts, not file checkouts
+if [ "$isbranch" -eq 1 ]; then
+    local current_git_branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
+    local current_ticket=$(get_current_ticket "$current_git_branch")
+
+    # Get the ticket for the previously active branch (from LAST_KNOWN_BRANCH global state)
+    local prev_ticket=""
+    if [ -n "$LAST_KNOWN_BRANCH" ]; then
+        prev_ticket=$(get_current_ticket "$LAST_KNOWN_BRANCH")
+    fi
+
+    # Compare prev_ticket with current_ticket and end session if different
+    if [ -n "$prev_ticket" ] && [ "$prev_ticket" != "$current_ticket" ]; then
+        local prev_ticket_file=$(get_ticket_file "$prev_ticket")
+        if [ -f "$prev_ticket_file" ]; then
+            local prev_active_session_count=$(jq '[.sessions[] | select(.active == true)] | length' "$prev_ticket_file" 2>/dev/null)
+            if [ "$prev_active_session_count" -gt 0 ]; then
+                echo "🔄 Branch changed via checkout. Ending active session for $prev_ticket..."
+                work_end "$prev_ticket"
+            fi
+        fi
+    fi
+
+    # Start/resume session for the new current ticket (if any)
+    if [ -n "$current_ticket" ]; then
+        echo "▶️  Ensuring work session for $current_ticket is active (post-checkout)."
+        work_start
+    else
+        echo "⚠️  Post-checkout: No ticket found in branch '$current_git_branch'."
+        echo "   Expected format matches: $(get_jira_ticket_regex)"
+        echo "   Tip: Update branch name or start work manually with 'work_start'."
+    fi
+
+    # Update LAST_KNOWN_BRANCH for subsequent checks (e.g., by auto_work_detect or next hook)
+    if [ -n "$current_git_branch" ]; then
+        LAST_KNOWN_BRANCH="$current_git_branch"
+    else
+        LAST_KNOWN_BRANCH=""
+    fi
+else
+    # File checkout, no branch change management
+    true # no-op
+fi

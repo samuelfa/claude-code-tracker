@@ -29,21 +29,50 @@ The project consists of the following key components:
     *   `claude_code_jira_regex_config`: Stores the regular expression used to detect Jira ticket numbers.
     *   `claude_code_statusline_config`: Stores information about the original Claude Code status line command and the separator used.
 
+### Git Hook Integration
+
+The Claude Code Tracker leverages Git hooks for precise and efficient detection of branch changes.
+
+*   **`post-checkout` Hook:** This hook is now the primary mechanism for detecting when a user switches Git branches (`git checkout`, `git switch`).
+    *   It runs immediately after a branch checkout completes.
+    *   The hook script (`src/git-hooks/post-checkout`) is executed, which sources `src/functions.sh` to access tracker logic.
+    *   It determines the current and previous Jira tickets (if any) and manages work sessions accordingly: ending any active session on the previous branch's ticket and starting/resuming a session for the new branch's ticket.
+    *   This ensures instant responsiveness to branch switches without relying on shell prompt polling.
+
 ### Folder Change and Git Repository Detection
 
-The tracker uses shell hooks to automatically detect when a user changes directories and if the new directory is part of a Git repository. It now also detects changes in the Git branch even when remaining in the same directory:
+The tracker uses shell hooks (`PROMPT_COMMAND`/`precmd`) to automatically detect when a user changes directories and if the new directory is part of a Git repository. This mechanism focuses on **directory-level state changes**, with branch-specific changes handled by Git hooks.
 
 1.  **Shell Integration:** The core logic in `src/functions.sh` is sourced into the user's shell profile (`.bashrc` for Bash, `.zshrc` for Zsh).
-2.  **`PROMPT_COMMAND` / `precmd`:** The `auto_work_detect` function is registered with the `PROMPT_COMMAND` (Bash) or `precmd` (Zsh) shell hooks. These hooks ensure `auto_work_detect` is executed just before the shell displays a new prompt.
-3.  **Git Repository Check (On Every Prompt):** On every prompt, `auto_work_detect` first checks if the current directory is part of a Git repository using `git rev-parse --git-dir` and retrieves the current branch name.
-4.  **Directory Change Detection:** The current working directory (`$PWD`) is compared against the `LAST_WORK_DIR` variable. If they differ, a directory change is detected, triggering a re-evaluation of the Git state.
-5.  **Branch Change Detection (Without Directory Change):** The current Git branch is compared with the `LAST_KNOWN_BRANCH` variable (which stores the branch from the previous prompt). If the directory has not changed but the branch has, a branch change is detected.
-6.  **Automated Actions:** If either a directory change (into/within a Git repo) or a branch change is detected:
-    *   Any active work session associated with the *previous* branch's ticket (if `LAST_KNOWN_BRANCH` had a ticket) is automatically ended.
-    *   The Jira ticket is extracted from the *current* Git branch name.
-    *   A new work session is started or resumed for the newly detected ticket (if one is present in the branch name).
-    *   The `LAST_WORK_DIR` and `LAST_KNOWN_BRANCH` variables are updated for the next prompt cycle.
-    This ensures that work tracking is responsive to both directory changes and Git branch changes.
+2.  **`PROMPT_COMMAND` / `precmd`:** The `auto_work_detect` function is registered with these shell hooks. These ensure `auto_work_detect` is executed just before the shell displays a new prompt.
+3.  **Directory Change Detection:** `auto_work_detect` compares the current working directory (`$PWD`) with the `LAST_WORK_DIR` variable. If they differ, a directory change is detected.
+4.  **Automated Actions (on Directory Change):**
+    *   **Exiting a Git Repo:** If the user moves out of a Git repository, `auto_work_detect` ensures any active session for the previously tracked ticket is ended.
+    *   **Entering a Git Repo:** If the user moves into a Git repository from a non-Git directory, it checks the current branch for a Jira ticket and starts/resumes a session if found.
+    *   **Switching Git Repos:** If the user moves directly from one Git repository to another, it handles ending the session for the old repository's ticket and starting/resuming for the new one.
+    *   The `LAST_WORK_DIR` and `LAST_KNOWN_BRANCH` variables are updated for the next cycle to reflect the new directory's Git context.
+    *   A warning is displayed if the user is in a Git repository but no valid Jira ticket is found in the current branch name.
+    This mechanism ensures work tracking is responsive to transitions into, out of, and between different Git working trees.
+
+### Discarded Strategies: Rationale for Git Hooks
+
+Initially, the Claude Code Tracker detected Git branch changes by polling the Git repository on every shell prompt via the `PROMPT_COMMAND` or `precmd` hooks. This approach underwent two main iterations:
+
+1.  **Simple Polling:** On every prompt, `auto_work_detect` would check the current Git branch and manage sessions.
+    *   **Drawbacks:** This was inefficient, as `git` commands were executed excessively, even when no branch change had occurred. It could lead to noticeable slowdowns in prompt responsiveness.
+
+2.  **Polling with Caching:** To mitigate performance issues, a caching mechanism was introduced. `git` commands were still called on every prompt, but their results were cached for a short duration (e.g., 1 second). Actual `git` executable calls only occurred if the cache was stale or a directory change happened.
+    *   **Drawbacks:** While significantly improving performance over simple polling, this method still involved checking the cache and potentially running `git` commands periodically. It remained a polling-based approach, inherently less efficient and less immediate than event-driven mechanisms. There was also a minor, theoretical risk of Git lock conflicts, which, though largely mitigated by caching, could not be entirely eliminated due to the continuous checks.
+
+**Why Git Hooks are Superior:**
+
+The shift to using a `post-checkout` Git hook offers significant advantages over polling strategies:
+
+*   **Optimal Efficiency:** Logic is executed only *when a Git event actually occurs* (e.g., a branch checkout). This completely eliminates the overhead of constantly checking the Git repository state on every shell prompt.
+*   **Immediate Responsiveness:** Work session management reacts instantaneously to branch changes, ensuring that tracking data is always up-to-date right after a Git operation completes.
+*   **Reduced Resource Usage:** By moving from polling to event-driven execution, the tracker's overall resource consumption is minimized, contributing to a smoother user experience and reducing any lingering performance concerns related to frequent `git` calls.
+
+This architectural change makes the Claude Code Tracker more robust, efficient, and aligned with Git's event-driven nature.
 
 ## Building and Running
 

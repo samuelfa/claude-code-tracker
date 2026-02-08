@@ -551,100 +551,91 @@ jira_open() {
 
 LAST_WORK_DIR=""
 LAST_KNOWN_BRANCH=""
-LAST_GIT_CHECK_TIMESTAMP=""
-GIT_CHECK_COOLDOWN=1 # Cooldown period in seconds
 
 auto_work_detect() {
     local current_dir="$PWD"
-    local current_git_branch=""
-    local in_git_repo=false
-    local now=$(get_timestamp) # Get current timestamp once
-
-    # --- Caching logic for Git checks ---
-    if [ -n "$LAST_GIT_CHECK_TIMESTAMP" ] && [ "$((now - LAST_GIT_CHECK_TIMESTAMP))" -lt "$GIT_CHECK_COOLDOWN" ]; then
-        # Cooldown period active, use cached values
-        if [ -n "$LAST_KNOWN_BRANCH" ]; then
-            in_git_repo=true
-            current_git_branch="$LAST_KNOWN_BRANCH"
-        else
-            in_git_repo=false
-            current_git_branch=""
+    
+    if [ "$current_dir" != "$LAST_WORK_DIR" ]; then
+        local prev_dir_was_git=false
+        if [ -n "$LAST_KNOWN_BRANCH" ]; then # If LAST_KNOWN_BRANCH was set, we were in a git repo
+            prev_dir_was_git=true
         fi
-    else
-        # Cooldown expired or first run, perform actual Git checks
+
+        LAST_WORK_DIR="$current_dir" # Update LAST_WORK_DIR immediately
+
+        local current_is_git=false
+        local current_git_branch="" # Initialize here
         if git rev-parse --git-dir > /dev/null 2>&1; then
-            in_git_repo=true
+            current_is_git=true
             current_git_branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
         fi
-        LAST_GIT_CHECK_TIMESTAMP="$now" # Update timestamp after performing Git checks
-    fi
-    # --- End Caching logic ---
 
-    local should_process_git_state=false
-
-    # Scenario 1: Directory changed
-    if [ "$current_dir" != "$LAST_WORK_DIR" ]; then
-        should_process_git_state=true
-        LAST_WORK_DIR="$current_dir" # Update LAST_WORK_DIR
-    fi
-
-    # Scenario 2: Directory same, but branch changed (and we are in a git repo)
-    if [ "$in_git_repo" = true ] && [ "$current_git_branch" != "$LAST_KNOWN_BRANCH" ]; then
-        should_process_git_state=true
-    fi
-
-    # Process Git state if either directory or branch changed, or if entering/exiting a git repo
-    if [ "$should_process_git_state" = true ]; then
-        local current_ticket=""
-        if [ "$in_git_repo" = true ]; then
-            current_ticket=$(get_current_ticket "$current_git_branch")
-        fi
-
-        local prev_ticket=""
-        if [ -n "$LAST_KNOWN_BRANCH" ]; then # Only try to get ticket if there was a known branch
-            prev_ticket=$(get_current_ticket "$LAST_KNOWN_BRANCH")
-        fi
-
-        # Logic to handle branch change (ending old session if different ticket)
-        if [ -n "$prev_ticket" ] && [ "$prev_ticket" != "$current_ticket" ]; then
-            local prev_ticket_file=$(get_ticket_file "$prev_ticket")
-            if [ -f "$prev_ticket_file" ]; then
-                local prev_active_session_count=$(jq '[.sessions[] | select(.active == true)] | length' "$prev_ticket_file" 2>/dev/null)
-                if [ "$prev_active_session_count" -gt 0 ]; then
-                    echo "🔄 Branch changed. Ending active session for $prev_ticket..."
-                    work_end "$prev_ticket" # Use modified work_end to target the specific ticket
+        # Scenario: Moving out of a Git repo, or into a different one where previous session needs ending
+        if [ "$prev_dir_was_git" = true ] && [ "$current_is_git" = false ]; then
+            # Moved out of a Git repo entirely
+            local prev_ticket=$(get_current_ticket "$LAST_KNOWN_BRANCH")
+            if [ -n "$prev_ticket" ]; then
+                local prev_ticket_file=$(get_ticket_file "$prev_ticket")
+                if [ -f "$prev_ticket_file" ]; then
+                    local prev_active_session_count=$(jq '[.sessions[] | select(.active == true)] | length' "$prev_ticket_file" 2>/dev/null)
+                    if [ "$prev_active_session_count" -gt 0 ]; then
+                        echo "🔄 Moved out of Git repo. Ending active session for $prev_ticket..."
+                        work_end "$prev_ticket"
+                    fi
                 fi
             fi
+            LAST_KNOWN_BRANCH="" # Clear as no longer in a git repo
+        elif [ "$prev_dir_was_git" = true ] && [ "$current_is_git" = true ]; then
+            # Moved from one Git repo to another, or within a Git repo
+            # Here, we need to make sure LAST_KNOWN_BRANCH is updated if we moved to a new git repo that the hook didn't handle.
+            if [ "$current_git_branch" != "$LAST_KNOWN_BRANCH" ]; then
+                # This happens if moving between two different git repos
+                # or into a repo where branch was not handled by hook on last entry.
+                local current_ticket=$(get_current_ticket "$current_git_branch")
+                
+                # End previous session if it exists and is different
+                local prev_ticket=$(get_current_ticket "$LAST_KNOWN_BRANCH")
+                if [ -n "$prev_ticket" ] && [ "$prev_ticket" != "$current_ticket" ]; then
+                    local prev_ticket_file=$(get_ticket_file "$prev_ticket")
+                    if [ -f "$prev_ticket_file" ]; then
+                        local prev_active_session_count=$(jq '[.sessions[] | select(.active == true)] | length' "$prev_ticket_file" 2>/dev/null)
+                        if [ "$prev_active_session_count" -gt 0 ]; then
+                            echo "🔄 Directory changed to new repo/branch. Ending active session for $prev_ticket..."
+                            work_end "$prev_ticket"
+                        fi
+                    fi
+                fi
+
+                # Start/resume session for current ticket
+                if [ -n "$current_ticket" ]; then
+                    echo "▶️  Directory changed. Ensuring work session for $current_ticket is active."
+                    work_start
+                fi
+                LAST_KNOWN_BRANCH="$current_git_branch" # Update after processing
+            fi
+        elif [ "$prev_dir_was_git" = false ] && [ "$current_is_git" = true ]; then
+            # Moved into a Git repo from a non-Git directory
+            local current_ticket=$(get_current_ticket "$current_git_branch")
+
+            if [ -n "$current_ticket" ]; then
+                echo "▶️  Entered Git repo. Ensuring work session for $current_ticket is active."
+                work_start
+            fi
+            LAST_KNOWN_BRANCH="$current_git_branch" # Update after processing
         fi
 
-        # Start/resume session for the new current ticket (if any)
-        if [ -n "$current_ticket" ]; then
-            local ticket_file=$(get_ticket_file "$current_ticket")
-            
-            # work_start inherently checks if a session is already active for this ticket,
-            # so we can just call it to ensure a session is active.
-            work_start
-        else
-            true # no-op
-        fi
-
-        # Handle the warning message for no ticket if applicable
-        if [ "$in_git_repo" = true ] && [ -z "$current_ticket" ]; then
+        # Display warning if in a Git repo but no ticket (after processing all scenarios)
+        local display_warning_branch="$current_git_branch" # Use the branch from current scan
+        if [ "$current_is_git" = true ] && [ -z "$(get_current_ticket "$display_warning_branch")" ]; then
             echo ""
             echo "⚠️  No ticket number in branch name!"
-            echo "   Current branch: $current_git_branch"
+            echo "   Current branch: $display_warning_branch"
             echo "   Expected format matches: $(get_jira_ticket_regex)"
             echo "   Tip: Rename with: git branch -m feature/ABC-123-description"
             echo ""
         fi
     fi
-
-    # Always update LAST_KNOWN_BRANCH for the next prompt
-    if [ "$in_git_repo" = true ]; then
-        LAST_KNOWN_BRANCH="$current_git_branch"
-    else
-        LAST_KNOWN_BRANCH="" # If not in a git repo, no known branch
-    fi
+    # No action if directory didn't change (branch changes are handled by hook)
 }
 
 # ============================================================================

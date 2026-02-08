@@ -193,6 +193,8 @@ echo "🔧 Setting up git hooks..."
 mkdir -p ~/.git-templates/hooks
 cp src/git-hooks/prepare-commit-msg ~/.git-templates/hooks/
 chmod +x ~/.git-templates/hooks/prepare-commit-msg
+cp src/git-hooks/post-checkout ~/.git-templates/hooks/
+chmod +x ~/.git-templates/hooks/post-checkout
 git config --global init.templateDir ~/.git-templates
 echo "✓ Git hooks configured globally"
 
