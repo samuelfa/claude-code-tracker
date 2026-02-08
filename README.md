@@ -111,7 +111,7 @@ EDE-123 ⏱️  15m 🪙 0.5k
 💤 EDE-123 (session ended)
 
 # No ticket in branch
-⚠️  No ticket in branch name
+No Jira Ticket
 
 # Not in git repo
 (nothing displayed)

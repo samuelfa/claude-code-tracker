@@ -51,7 +51,7 @@ The tracker uses shell hooks (`PROMPT_COMMAND`/`precmd`) to automatically detect
     *   **Entering a Git Repo:** If the user moves into a Git repository from a non-Git directory, it checks the current branch for a Jira ticket and starts/resumes a session if found.
     *   **Switching Git Repos:** If the user moves directly from one Git repository to another, it handles ending the session for the old repository's ticket and starting/resuming for the new one.
     *   The `LAST_WORK_DIR` and `LAST_KNOWN_BRANCH` variables are updated for the next cycle to reflect the new directory's Git context.
-    *   A warning is displayed if the user is in a Git repository but no valid Jira ticket is found in the current branch name.
+    *   If the user is in a Git repository but no valid Jira ticket is found in the current branch name, `auto_work_detect` will display a warning to `stderr`. For the Claude Code status line, `work_status` will output a concise "No Jira Ticket" message instead of a warning.
     This mechanism ensures work tracking is responsive to transitions into, out of, and between different Git working trees.
 
 ### Discarded Strategies: Rationale for Git Hooks

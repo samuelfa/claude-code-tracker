@@ -199,7 +199,7 @@ Session was ended with `work_end` or PR creation.
 
 ### No Ticket
 ```
-⚠️  No ticket in branch name
+No Jira Ticket
 ```
 Branch name doesn't contain a valid ticket number.
 

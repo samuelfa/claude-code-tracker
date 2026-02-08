@@ -14,7 +14,7 @@ The `install.sh` script sets up the Claude Code Tracker on your system. It perfo
 3.  **File Copying:** Copies all scripts and files from the `src/` directory of the project into the `~/.claude_code_tracker/` installation directory. This includes `functions.sh`, `claude_code_wrapper.sh`, `statusline.sh`, and `git-hooks/prepare-commit-msg`.
 4.  **Claude Code Script Integration:**
     *   Creates the `~/.claude/scripts/` directory (if it doesn't exist).
-    *   Copies `claude_code_wrapper.sh` into `~/.claude/scripts/`. This script acts as the main interface for Claude Code's status line.
+    *   Copies `claude_code_wrapper.sh` into `~/.claude/scripts/`, ensuring it is configured with the correct tracker installation path (`INSTALL_DIR`). This script acts as the main interface for Claude Code's status line.
 5.  **Configuration Prompts:** If configuration files do not exist, the script interactively prompts you for:
     *   The desired separator for the Claude Code status line (e.g., `\\n` for newline, ` ` for space).
     *   Your Jira base URL (e.g., `https://jira.yourcompany.com/browse`).

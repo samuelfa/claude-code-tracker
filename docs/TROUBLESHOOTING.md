@@ -70,6 +70,14 @@ chmod +x install.sh
     # Should exist and have execute permissions (e.g., -rwxr-xr-x)
     ```
 
+### "bash: [: : integer expression expected"
+
+**Problem:** You encounter an error like `bash: [: : integer expression expected` when using tracker commands or in the status line.
+
+**Cause:** This typically happens when a shell arithmetic comparison (e.g., using `[ ... -gt 0 ]` or `[ ... -ge 0 ]`) is performed with a variable that is empty or contains a non-numeric value. This was a bug in earlier versions of the tracker.
+
+**Solution:** This issue has been resolved in recent versions of the Claude Code Tracker by using more robust arithmetic evaluation (`(( ))`) that safely handles empty or non-numeric values. Ensure you have the latest version of the tracker installed by re-running `install.sh`. If the issue persists after updating, please report it.
+
 ### Status Line Issues
 
 #### Claude Code status line not showing tracker info
@@ -83,7 +91,7 @@ chmod +x install.sh
     *   Ensure your current branch name contains a detected Jira ticket number. You can verify this manually:
         ```bash
         work_status
-        # If it says "⚠️ No ticket in branch name" or "💤 (no activity)", it's not active.
+        # If it says "No Jira Ticket" or "💤 (no activity)", it's not active.
         ```
     *   If no ticket is found, check your branch name against the configured regex.
 
@@ -105,29 +113,58 @@ chmod +x install.sh
 
 3.  **Claude Code needs a restart:** After installation or configuration changes, restart Claude Code.
 
-#### Claude Code status line shows "No ticket in branch name"
+#### Claude Code status line shows "No Jira Ticket" but a valid ticket is in the branch name
 
-**Problem:** Your branch name *seems* valid, but the tracker isn't detecting the ticket.
+**Problem:** The status line displays "No Jira Ticket", but your current branch name *seems* to contain a valid Jira ticket (e.g., `feature/EDE-123`).
 
 **Solution:**
-The ticket detection uses a regular expression which is configurable.
+The ticket detection relies on a configurable regular expression. The most common cause for this is a mismatch between your branch name's format and the configured regex.
 
 1.  **Check your current branch name:**
     ```bash
     git branch --show-current
     ```
 
-2.  **Check the configured Jira ticket regex:**
+2.  **Check the *configured* Jira ticket regex:**
+    The tracker uses a regex defined in a configuration file. The default regex is `[A-Z]+-[0-9]+`, but it can be customized during installation or via the `set_jira_ticket_regex` command.
     ```bash
     # This will output the regex currently in use
     source ~/.claude_code_tracker/functions.sh && get_jira_ticket_regex
     ```
-    Ensure your branch name matches this regex.
+    Carefully compare your branch name against the outputted regex. Pay attention to:
+    *   **Case sensitivity:** `[A-Z]` won't match `a-z`.
+    *   **Number of characters:** `[A-Z]{3}` requires exactly three uppercase letters, while `[A-Z]+` requires one or more.
+    *   **Separator character:** `-` vs `_`.
+    *   **Quoting:** Ensure your regex doesn't include unintended quotes. The tracker automatically strips quotes, but it's good to be aware.
 
-3.  **Update the regex if needed:** Use the `set_jira_ticket_regex` command or edit `~/.claude_code_tracker/config/claude_code_jira_regex_config` directly. For example:
+3.  **Update the regex if needed:** If your branch naming convention differs from the configured regex, you can update it. For example:
     ```bash
-    set_jira_ticket_regex '[A-Z]+-[0-9]+' # For patterns like ABC-123
+    # For patterns like ABC-123 (three uppercase letters, hyphen, then numbers)
+    set_jira_ticket_regex '[A-Z]{3}-[0-9]+'
+
+    # For patterns like FOO_12 (any uppercase letters, underscore, then numbers)
+    set_jira_ticket_regex '[A-Z]+_[0-9]+'
     ```
+    You can also edit `~/.claude_code_tracker/config/claude_code_jira_regex_config` directly.
+
+4.  **Reload your shell or restart Claude Code:** Ensure the changes are picked up.
+
+#### Claude Code status line is broken or shows "No such file or directory" for functions.sh
+
+**Problem:** The Claude Code status line is completely empty, showing errors like `C:/Users/YourUsername/.claude/functions.sh: No such file or directory`, or generally not working, even after `install.sh` has been run.
+
+**Cause:** The `claude_code_wrapper.sh` script, which powers the status line, was trying to source `functions.sh` from an incorrect location (e.g., `~/.claude/functions.sh` instead of `~/.claude_code_tracker/functions.sh`). This was due to an incorrect `INSTALL_DIR` calculation within the wrapper script itself. This issue has been fixed in recent versions of the tracker's `install.sh`.
+
+**Solution:** This problem is resolved by re-running the `install.sh` script. The installer now correctly injects the absolute path to the tracker's `INSTALL_DIR` into the `claude_code_wrapper.sh` script, ensuring `functions.sh` is sourced from the right place.
+
+1.  **Re-run `install.sh`:**
+    ```bash
+    ./install.sh
+    ```
+2.  **Restart Claude Code:** After re-running, restart Claude Code to pick up the updated wrapper script.
+
+
+
 
 #### Duplicated status line entry in Claude Code
 
@@ -173,6 +210,14 @@ This usually indicates an issue with `settings.json` or a previous manual config
     ```bash
     source ~/.bashrc # or appropriate config file
     ```
+
+#### "✅ Session ended for" missing ticket name
+
+**Problem:** When a work session ends, the message `✅ Session ended for` appears without the actual ticket name.
+
+**Cause:** This was a bug in earlier versions of the tracker where the `work_end` function was using an incorrect variable to print the ticket name in the session end message.
+
+**Solution:** This issue has been resolved in recent versions of the Claude Code Tracker. Ensure you have the latest version installed by re-running `install.sh`. If the issue persists after updating, please report it.
 
 #### Session shows "no activity"
 
