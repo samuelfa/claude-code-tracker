@@ -1,0 +1,46 @@
+#!/bin/bash
+
+BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
+TICKET=$(echo "$BRANCH" | grep -oE '[A-Z]{3}-[0-9]+' | head -1)
+COMMIT_MSG_FILE=$1
+COMMIT_SOURCE=$2
+
+# Skip for merges and amendments
+if [ "$COMMIT_SOURCE" = "merge" ] || [ "$COMMIT_SOURCE" = "commit" ]; then
+    exit 0
+fi
+
+ORIGINAL_MSG=$(cat "$COMMIT_MSG_FILE")
+
+# Check if message already has ticket reference
+if echo "$ORIGINAL_MSG" | grep -qE '(Close|WIP|Refs):[[:space:]]*[A-Z]{3}-[0-9]+'; then
+    exit 0
+fi
+
+if [ -n "$TICKET" ]; then
+    # Remove trailing newlines
+    TRIMMED_MSG=$(echo "$ORIGINAL_MSG" | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}')
+    
+    cat > "$COMMIT_MSG_FILE" <<EOFMSG
+$TRIMMED_MSG
+
+WIP: $TICKET
+EOFMSG
+    
+    echo "✓ Added ticket reference: WIP: $TICKET"
+    echo "  (Change to 'Close: $TICKET' if this closes the ticket)"
+else
+    cat > "$COMMIT_MSG_FILE" <<EOFMSG
+$ORIGINAL_MSG
+
+# ⚠️  WARNING: NO TICKET NUMBER IN BRANCH!
+# 
+# Current branch: $BRANCH
+# Expected format: feature/ABC-123-description
+#
+# If this commit relates to a ticket, add one of:
+#   WIP: ABC-123       (work in progress)
+#   Close: ABC-123     (closes the ticket)
+#   Refs: ABC-123      (references ticket)
+EOFMSG
+fi

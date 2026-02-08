@@ -1,0 +1,414 @@
+# Usage Guide
+
+## Basic Workflow
+
+### 1. Start Working on a Ticket
+
+Create a branch with a ticket number (3 uppercase letters + hyphen + numbers):
+
+```bash
+git checkout -b feature/EDE-123-new-authentication
+# ▶️  Started new work on EDE-123
+```
+
+Supported patterns:
+- `feature/EDE-123-description`
+- `bugfix/ABC-456-fix`
+- `chore/2027/XYZ-789-cleanup`
+- `feature/w2021/DEV-111-foo`
+
+The tracker automatically:
+- Detects the ticket number
+- Starts a new session
+- Shows tracking in your status line
+
+### 2. Work on Your Code
+
+Your status line shows real-time tracking:
+
+```
+EDE-123 ⏱️  15m 🪙 2.5k
+~/my-project $
+```
+
+- `EDE-123` - Ticket number
+- `⏱️  15m` - Time elapsed (shows hours when > 60 min)
+- `🪙 2.5k` - Tokens used (formatted: 150→0.1k, 1500→1.5k, 15000→15k)
+
+### 3. Commit Your Work
+
+Commits automatically get ticket references:
+
+```bash
+git commit -m "Add user authentication"
+
+# Automatically becomes:
+# Add user authentication
+#
+# WIP: EDE-123
+```
+
+You can change `WIP:` to `Close:` if the commit closes the ticket:
+
+```bash
+git commit -m "Add user authentication
+
+Close: EDE-123"
+```
+
+### 4. Open a Pull Request
+
+When you create a PR with GitHub CLI, the session automatically ends:
+
+```bash
+gh pr create
+# 🎉 PR created! Ending work session...
+# ✅ Session ended for EDE-123
+```
+
+## Commands Reference
+
+### Session Management
+
+#### `work_start`
+Manually start a work session for the current ticket.
+
+```bash
+work_start
+# ▶️  Started new work on EDE-123
+```
+
+Auto-starts when you enter a directory with a ticket branch.
+
+#### `work_end`
+End the current work session and show summary.
+
+```bash
+work_end
+# ✅ Session ended for EDE-123
+#    This session: 2h 34m, 5000 tokens
+# 
+# 📊 Work Summary for EDE-123
+#    Sessions: 2
+#    Total time: 5h 47m
+#    Total tokens: 15000
+```
+
+Auto-ends when you run `gh pr create`.
+
+#### `work_add_tokens <count>`
+Manually add token usage to current session.
+
+```bash
+work_add_tokens 1000
+```
+
+Useful if you're manually tracking Claude Code API usage.
+
+### Viewing Information
+
+#### `work_summary`
+Show detailed summary for current ticket.
+
+```bash
+work_summary
+# 📊 Work Summary for EDE-123
+#    Created: 2026-02-07 14:30
+#    Sessions: 3
+#    Total time: 5h 47m
+#    Total tokens: 15000
+#    File: ~/.claude_code_work/EDE-123.json
+#    Link: https://jira.yourcompany.com/browse/EDE-123
+```
+
+#### `work_list`
+List all tracked tickets.
+
+```bash
+work_list
+# 📋 Work History:
+#   EDE-123: 3 sessions, 5h 47m, 15000 tokens
+#   EDE-456: 1 session, 1h 20m, 3000 tokens
+#   ABC-789: 2 sessions, 3h 15m, 8000 tokens
+```
+
+#### `work_view [TICKET]`
+View raw JSON data for a ticket.
+
+```bash
+work_view EDE-123
+# Shows raw JSON file content
+
+work_view  # Uses current ticket
+```
+
+### Configuration
+
+#### `set_ticket_prefix <PREFIX>`
+Set the default ticket prefix.
+
+```bash
+set_ticket_prefix ABC
+# ✓ Ticket prefix set to: ABC
+```
+
+Stored in `~/.claude_code_config`.
+
+#### `work_reconfigure_status`
+Change how the status line is displayed.
+
+```bash
+work_reconfigure_status
+# Current mode: 1
+# 
+# 1. New line above prompt
+# 2. Same line as prompt
+# 3. Manual (don't modify PS1)
+# 
+# Choose option (1-3): 2
+# ✓ Status line mode updated to: 2
+```
+
+### Status Line Control
+
+#### `work_toggle_status`
+Toggle status line on/off.
+
+```bash
+work_toggle_status
+# Status line: OFF
+
+work_toggle_status
+# Status line: ON
+```
+
+#### `work_restore_ps1`
+Restore your original prompt (before tracker was installed).
+
+```bash
+work_restore_ps1
+# ✓ Restored original PS1
+```
+
+### Jira Integration
+
+#### `jira_open [TICKET]`
+Open ticket in browser.
+
+```bash
+jira_open EDE-123
+# ✓ Opened EDE-123 in browser
+
+jira_open  # Opens current ticket
+```
+
+Configure your Jira URL by editing the `jira_url` variable in `~/.claude_code_tracker/src/functions.sh`:
+
+```bash
+local jira_url="https://your-company.atlassian.net/browse/$ticket"
+```
+
+## Status Line States
+
+### Active Session
+```
+EDE-123 ⏱️  2h 34m 🪙 15k
+```
+Working on ticket with active time tracking.
+
+### No Activity
+```
+💤 EDE-123 (no activity)
+```
+Ticket found in branch but no session file exists yet.
+
+### Session Ended
+```
+💤 EDE-123 (session ended)
+```
+Session was ended with `work_end` or PR creation.
+
+### No Ticket
+```
+⚠️  No ticket in branch name
+```
+Branch name doesn't contain a valid ticket number.
+
+### Not in Git Repo
+```
+(nothing displayed)
+```
+Not in a git repository.
+
+## File Storage
+
+### Session Data
+Work sessions are stored in: `~/.claude_code_work/`
+
+Each ticket has its own JSON file:
+```
+~/.claude_code_work/
+├── EDE-123.json
+├── EDE-456.json
+└── ABC-789.json
+```
+
+### File Format
+```json
+{
+  "ticket": "EDE-123",
+  "created": 1738886400,
+  "sessions": []
+}
+{"session_start":1738886400,"session_end":1738895600,"duration":9200,"tokens":5000,"active":false}
+{"session_start":1738900000,"session_end":null,"tokens":2500,"active":true}
+```
+
+- First line: Ticket metadata
+- Following lines: Session records (one per line)
+
+### Configuration
+- Ticket prefix: `~/.claude_code_config`
+- Status line mode: `~/.claude_code_tracker/config/status_line_config.sh`
+
+## Git Integration
+
+### Commit Message Format
+
+**Automatic addition:**
+```bash
+git commit -m "Add feature"
+
+# Becomes:
+# Add feature
+#
+# WIP: EDE-123
+```
+
+**Change to closing:**
+Edit in your editor before saving:
+```
+Add feature
+
+Close: EDE-123
+```
+
+**Reference without closing:**
+```
+Add feature
+
+Refs: EDE-123
+```
+
+### Branch Name Requirements
+
+Valid patterns (3 uppercase letters + hyphen + numbers):
+- ✅ `feature/EDE-123-description`
+- ✅ `bugfix/ABC-999-fix`
+- ✅ `chore/2027/XYZ-456-task`
+- ✅ `feat/EDE-1-start`
+
+Invalid patterns:
+- ❌ `feature/ede-123` (lowercase)
+- ❌ `feature/ED-123` (only 2 letters)
+- ❌ `feature/EDIT-123` (4 letters)
+- ❌ `feature/123` (no prefix)
+
+## Advanced Usage
+
+### Multiple Work Sessions
+
+You can work on a ticket across multiple days:
+
+```bash
+# Day 1
+git checkout -b feature/EDE-123-auth
+# Work for 2 hours
+work_end
+
+# Day 2
+cd ~/project
+# Automatically resumes session
+# Work for 3 hours
+work_end
+
+# Total tracked: 5 hours across 2 sessions
+```
+
+### Switching Between Tickets
+
+```bash
+# Work on ticket 1
+git checkout feature/EDE-123-auth
+# Status: EDE-123 ⏱️  1h 15m 🪙 5k
+
+# Switch to ticket 2
+git checkout feature/EDE-456-refactor
+# ▶️  Resumed work on EDE-456 (session #2)
+# Status: EDE-456 ⏱️  0m 🪙 0
+
+# Previous session auto-paused
+```
+
+Each ticket tracks independently.
+
+### Manual Token Tracking
+
+If you're using Claude Code and want to manually log token usage:
+
+```bash
+# After a Claude Code session
+work_add_tokens 5000
+```
+
+### Exporting Data
+
+Session data is stored as JSON and can be processed:
+
+```bash
+# View all sessions for a ticket
+cat ~/.claude_code_work/EDE-123.json
+
+# Extract total time using jq
+cat ~/.claude_code_work/EDE-123.json | grep duration | grep -oE '[0-9]+' | awk '{sum+=$1} END {print sum/3600 " hours"}'
+```
+
+## Tips and Best Practices
+
+### 1. Branch Naming Convention
+Always include the ticket number in your branch name:
+```bash
+git checkout -b feature/EDE-123-short-description
+```
+
+### 2. Review Before PR
+Check your work summary before creating a PR:
+```bash
+work_summary
+gh pr create
+```
+
+### 3. Regular Work Summaries
+Review your progress:
+```bash
+work_list  # See all tickets
+work_summary  # Current ticket details
+```
+
+### 4. Jira URL Configuration
+Update the Jira URL to match your company:
+```bash
+# Edit ~/.claude_code_tracker/src/functions.sh
+# Find and update:
+local jira_url="https://your-company.atlassian.net/browse/$ticket"
+```
+
+### 5. Commit Message Editing
+The git hook adds "WIP:" by default. Change it in your editor if needed:
+- `WIP:` - Work in progress
+- `Close:` - Closes the ticket
+- `Refs:` - References the ticket
+
+## Troubleshooting
+
+See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for common issues and solutions.
