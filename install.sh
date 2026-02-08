@@ -249,7 +249,6 @@ echo ""
 if [[ "$PLATFORM" == "windows" ]]; then
     echo "Windows-specific notes:"
     echo "  • Using Git Bash: Restart Git Bash or run: source $SHELL_CONFIG"
-    echo "  • Configure Claude Code settings.json with the PowerShell command above"
     echo ""
 fi
 
