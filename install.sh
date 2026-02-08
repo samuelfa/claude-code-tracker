@@ -124,30 +124,41 @@ if [ ! -f "$CLAUDE_CODE_JIRA_REGEX_CONFIG" ]; then
     echo "⚙️  Configuring Jira Ticket Regex..."
     echo "   (You can change this later by editing $CLAUDE_CODE_JIRA_REGEX_CONFIG)"
 
+    JIRA_REGEX_CHARS="" # To build the character class, e.g., A-Z0-9
     JIRA_REGEX_PART1=""
-    JIRA_REGEX_PART2=""
     JIRA_REGEX_SEPARATOR=""
     JIRA_REGEX_NUMBER=""
 
-    # Part 1: Prefix characters
-    read -p "Jira ticket prefix characters (e.g., 'letters', 'uppercase', 'lowercase', 'any') [uppercase]: " CHAR_TYPE_INPUT
-    CHAR_TYPE=${CHAR_TYPE_INPUT:-"uppercase"}
-    case "$CHAR_TYPE" in
-        "letters") JIRA_REGEX_PART1="[A-Za-z]" ;;
-        "uppercase") JIRA_REGEX_PART1="[A-Z]" ;;
-        "lowercase") JIRA_REGEX_PART1="[a-z]" ;;
-        "any") JIRA_REGEX_PART1="." ;;
-        *) JIRA_REGEX_PART1="[A-Z]" ;; # Default to uppercase
-    esac
+    echo "  -- Jira ticket prefix character types --"
+    read -p "Include uppercase letters (A-Z) in prefix? (Y/n): " INCLUDE_UPPERCASE
+    [[ "$INCLUDE_UPPERCASE" =~ ^[Yy]$ || -z "$INCLUDE_UPPERCASE" ]] && JIRA_REGEX_CHARS+="A-Z"
+
+    read -p "Include lowercase letters (a-z) in prefix? (y/N): " INCLUDE_LOWERCASE
+    [[ "$INCLUDE_LOWERCASE" =~ ^[Yy]$ ]] && JIRA_REGEX_CHARS+="a-z"
+
+    read -p "Include numbers (0-9) in prefix? (y/N): " INCLUDE_NUMBERS
+    [[ "$INCLUDE_NUMBERS" =~ ^[Yy]$ ]] && JIRA_REGEX_CHARS+="0-9"
+
+    read -p "Include other characters (e.g., _, ., etc.) in prefix? (y/N): " INCLUDE_OTHER_CHARS
+    if [[ "$INCLUDE_OTHER_CHARS" =~ ^[Yy]$ ]]; then
+        read -p "Please enter the specific other characters to include (e.g., '_.-'): " OTHER_CHARS
+        JIRA_REGEX_CHARS+=$(printf '%s' "$OTHER_CHARS" | sed 's/[][\/.^$*+?(){}|-]/\\&/g')
+    fi
+    
+    if [ -n "$JIRA_REGEX_CHARS" ]; then
+        JIRA_REGEX_PART1="[${JIRA_REGEX_CHARS}]"
+    else
+        echo "⚠️ No character types selected for prefix. Defaulting to uppercase letters (A-Z)."
+        JIRA_REGEX_PART1="[A-Z]"
+    fi
 
     read -p "Jira ticket prefix character quantity (e.g., '1', '1-3', '3') [1+]: " CHAR_QUANTITY_INPUT
     CHAR_QUANTITY=${CHAR_QUANTITY_INPUT:-"1+"}
     case "$CHAR_QUANTITY" in
         "1") JIRA_REGEX_PART1="${JIRA_REGEX_PART1}{1}" ;;
         "1+") JIRA_REGEX_PART1="${JIRA_REGEX_PART1}+" ;;
-        "1-") JIRA_REGEX_PART1="${JIRA_REGEX_PART1}+" ;; # Interpret 1- as 1 or more
         "0+") JIRA_REGEX_PART1="${JIRA_REGEX_PART1}*" ;;
-        *) JIRA_REGEX_PART1="${JIRA_REGEX_PART1}{${CHAR_QUANTITY}}" ;; # Use as is for ranges like 1-3 or fixed like 3
+        *) JIRA_REGEX_PART1="${JIRA_REGEX_PART1}{${CHAR_QUANTITY}}" ;;
     esac
 
     # Separator
