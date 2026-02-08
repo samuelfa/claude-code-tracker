@@ -29,6 +29,22 @@ The project consists of the following key components:
     *   `claude_code_jira_regex_config`: Stores the regular expression used to detect Jira ticket numbers.
     *   `claude_code_statusline_config`: Stores information about the original Claude Code status line command and the separator used.
 
+### Folder Change and Git Repository Detection
+
+The tracker uses shell hooks to automatically detect when a user changes directories and if the new directory is part of a Git repository. It now also detects changes in the Git branch even when remaining in the same directory:
+
+1.  **Shell Integration:** The core logic in `src/functions.sh` is sourced into the user's shell profile (`.bashrc` for Bash, `.zshrc` for Zsh).
+2.  **`PROMPT_COMMAND` / `precmd`:** The `auto_work_detect` function is registered with the `PROMPT_COMMAND` (Bash) or `precmd` (Zsh) shell hooks. These hooks ensure `auto_work_detect` is executed just before the shell displays a new prompt.
+3.  **Git Repository Check (On Every Prompt):** On every prompt, `auto_work_detect` first checks if the current directory is part of a Git repository using `git rev-parse --git-dir` and retrieves the current branch name.
+4.  **Directory Change Detection:** The current working directory (`$PWD`) is compared against the `LAST_WORK_DIR` variable. If they differ, a directory change is detected, triggering a re-evaluation of the Git state.
+5.  **Branch Change Detection (Without Directory Change):** The current Git branch is compared with the `LAST_KNOWN_BRANCH` variable (which stores the branch from the previous prompt). If the directory has not changed but the branch has, a branch change is detected.
+6.  **Automated Actions:** If either a directory change (into/within a Git repo) or a branch change is detected:
+    *   Any active work session associated with the *previous* branch's ticket (if `LAST_KNOWN_BRANCH` had a ticket) is automatically ended.
+    *   The Jira ticket is extracted from the *current* Git branch name.
+    *   A new work session is started or resumed for the newly detected ticket (if one is present in the branch name).
+    *   The `LAST_WORK_DIR` and `LAST_KNOWN_BRANCH` variables are updated for the next prompt cycle.
+    This ensures that work tracking is responsive to both directory changes and Git branch changes.
+
 ## Building and Running
 
 This is a script-based project, so there is no compilation step. The project is "run" by being sourced into the user's shell and by being called from Claude Code.

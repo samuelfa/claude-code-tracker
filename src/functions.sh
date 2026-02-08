@@ -111,14 +111,14 @@ set_jira_ticket_regex() {
 # ============================================================================
 
 get_current_ticket() {
-    local branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
+    local branch=${1:-$(git rev-parse --abbrev-ref HEAD 2>/dev/null)}
     
     if [ -z "$branch" ]; then
         return
     fi
     
     local jira_regex=$(get_jira_ticket_regex)
-    echo "$branch" | grep -oE "$jira_regex" | head -1
+    echo "$branch" | sed -E "s/.*(^|[^[:alnum:]])($jira_regex)([^[:alnum:]]|$).*/\2/p" | head -1
 }
 
 get_ticket_file() {
@@ -153,6 +153,38 @@ format_tokens() {
         echo "$tokens"
     fi
 }
+
+# ============================================================================
+# Utility Functions
+# ============================================================================
+
+# Returns a Unix timestamp (seconds since epoch)
+get_timestamp() {
+    date +%s
+}
+
+# Formats a Unix timestamp into a readable date string
+format_date() {
+    local timestamp=$1
+    case "$PLATFORM" in
+        macos)
+            date -r "$timestamp" "+%Y-%m-%d %H:%M:%S"
+            ;;
+        linux|wsl)
+            date -d "@$timestamp" "+%Y-%m-%d %H:%M:%S"
+            ;;
+        windows)
+            # Git Bash / MSYS2 uses date -d, but may have issues with timezone or locale.
+            # Fallback to a simpler format if necessary, or rely on WSL/Linux for full functionality.
+            # For now, use the linux style date.
+            date -d "@$timestamp" "+%Y-%m-%d %H:%M:%S"
+            ;;
+        *)
+            date -d "@$timestamp" "+%Y-%m-%d %H:%M:%S" # Default to Linux style
+            ;;
+    esac
+}
+
 
 # ============================================================================
 # Session Management Functions
@@ -229,14 +261,14 @@ work_add_tokens() {
     fi
 }
 work_end() {
-    local ticket=$(get_current_ticket)
+    local target_ticket=${1:-$(get_current_ticket)}
 
-    if [ -z "$ticket" ]; then
-        echo "⚠️  No ticket found in current branch"
+    if [ -z "$target_ticket" ]; then
+        echo "⚠️  No ticket found in current branch or provided as argument"
         return 1
     fi
 
-    local ticket_file=$(get_ticket_file "$ticket")
+    local ticket_file=$(get_ticket_file "$target_ticket")
 
     if [ ! -f "$ticket_file" ]; then
         echo "⚠️  No work history for $ticket"
@@ -350,7 +382,7 @@ work_summary() {
 
     # Calculate total duration and tokens considering active session
     local session_data
-    session_data=$(jq -c '.sessions[]' "$ticket_file")
+    session_data=$(jq -c '.sessions[]' "$file")
 
     while IFS= read -r session_json; do
         local session_start=$(echo "$session_json" | jq -r '.session_start')
@@ -518,37 +550,100 @@ jira_open() {
 # ============================================================================
 
 LAST_WORK_DIR=""
+LAST_KNOWN_BRANCH=""
+LAST_GIT_CHECK_TIMESTAMP=""
+GIT_CHECK_COOLDOWN=1 # Cooldown period in seconds
 
 auto_work_detect() {
     local current_dir="$PWD"
-    
-    if [ "$current_dir" != "$LAST_WORK_DIR" ]; then
-        LAST_WORK_DIR="$current_dir"
-        
+    local current_git_branch=""
+    local in_git_repo=false
+    local now=$(get_timestamp) # Get current timestamp once
+
+    # --- Caching logic for Git checks ---
+    if [ -n "$LAST_GIT_CHECK_TIMESTAMP" ] && [ "$((now - LAST_GIT_CHECK_TIMESTAMP))" -lt "$GIT_CHECK_COOLDOWN" ]; then
+        # Cooldown period active, use cached values
+        if [ -n "$LAST_KNOWN_BRANCH" ]; then
+            in_git_repo=true
+            current_git_branch="$LAST_KNOWN_BRANCH"
+        else
+            in_git_repo=false
+            current_git_branch=""
+        fi
+    else
+        # Cooldown expired or first run, perform actual Git checks
         if git rev-parse --git-dir > /dev/null 2>&1; then
-            local ticket=$(get_current_ticket)
-            
-            if [ -z "$ticket" ]; then
-                echo ""
-                echo "⚠️  No ticket number in branch name!"
-                local branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
-                echo "   Current branch: $branch"
-                echo "   Expected format matches: $(get_jira_ticket_regex)"
-                echo "   Tip: Rename with: git branch -m feature/ABC-123-description"
-                echo ""
-            else
-                local ticket_file=$(get_ticket_file "$ticket")
-                
-                if [ ! -f "$ticket_file" ]; then
-                    work_start
-                else
-                    local active=$(grep '"active":true' "$ticket_file" 2>/dev/null)
-                    if [ -z "$active" ]; then
-                        work_start
-                    fi
+            in_git_repo=true
+            current_git_branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
+        fi
+        LAST_GIT_CHECK_TIMESTAMP="$now" # Update timestamp after performing Git checks
+    fi
+    # --- End Caching logic ---
+
+    local should_process_git_state=false
+
+    # Scenario 1: Directory changed
+    if [ "$current_dir" != "$LAST_WORK_DIR" ]; then
+        should_process_git_state=true
+        LAST_WORK_DIR="$current_dir" # Update LAST_WORK_DIR
+    fi
+
+    # Scenario 2: Directory same, but branch changed (and we are in a git repo)
+    if [ "$in_git_repo" = true ] && [ "$current_git_branch" != "$LAST_KNOWN_BRANCH" ]; then
+        should_process_git_state=true
+    fi
+
+    # Process Git state if either directory or branch changed, or if entering/exiting a git repo
+    if [ "$should_process_git_state" = true ]; then
+        local current_ticket=""
+        if [ "$in_git_repo" = true ]; then
+            current_ticket=$(get_current_ticket "$current_git_branch")
+        fi
+
+        local prev_ticket=""
+        if [ -n "$LAST_KNOWN_BRANCH" ]; then # Only try to get ticket if there was a known branch
+            prev_ticket=$(get_current_ticket "$LAST_KNOWN_BRANCH")
+        fi
+
+        # Logic to handle branch change (ending old session if different ticket)
+        if [ -n "$prev_ticket" ] && [ "$prev_ticket" != "$current_ticket" ]; then
+            local prev_ticket_file=$(get_ticket_file "$prev_ticket")
+            if [ -f "$prev_ticket_file" ]; then
+                local prev_active_session_count=$(jq '[.sessions[] | select(.active == true)] | length' "$prev_ticket_file" 2>/dev/null)
+                if [ "$prev_active_session_count" -gt 0 ]; then
+                    echo "🔄 Branch changed. Ending active session for $prev_ticket..."
+                    work_end "$prev_ticket" # Use modified work_end to target the specific ticket
                 fi
             fi
         fi
+
+        # Start/resume session for the new current ticket (if any)
+        if [ -n "$current_ticket" ]; then
+            local ticket_file=$(get_ticket_file "$current_ticket")
+            
+            # work_start inherently checks if a session is already active for this ticket,
+            # so we can just call it to ensure a session is active.
+            work_start
+        else
+            true # no-op
+        fi
+
+        # Handle the warning message for no ticket if applicable
+        if [ "$in_git_repo" = true ] && [ -z "$current_ticket" ]; then
+            echo ""
+            echo "⚠️  No ticket number in branch name!"
+            echo "   Current branch: $current_git_branch"
+            echo "   Expected format matches: $(get_jira_ticket_regex)"
+            echo "   Tip: Rename with: git branch -m feature/ABC-123-description"
+            echo ""
+        fi
+    fi
+
+    # Always update LAST_KNOWN_BRANCH for the next prompt
+    if [ "$in_git_repo" = true ]; then
+        LAST_KNOWN_BRANCH="$current_git_branch"
+    else
+        LAST_KNOWN_BRANCH="" # If not in a git repo, no known branch
     fi
 }
 
