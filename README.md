@@ -17,7 +17,7 @@ Track development time, monitor AI token usage, and manage Jira tickets seamless
 ## Quick Start
 
 ```bash
-git clone https://github.com/yourusername/claude-code-tracker.git
+git clone https://github.com/samuelfa/claude-code-tracker.git
 cd claude-code-tracker
 ./install.sh
 ```
@@ -34,30 +34,11 @@ The installer is designed to update existing files and configurations without ov
 
 ## Configure Claude Code
 
-After installation, add this to your Claude Code `settings.json`:
+The `install.sh` script automatically configures your Claude Code `settings.json` to integrate the tracker. It will set the `statusLine.command` to use `~/.claude/scripts/claude_code_wrapper.sh`.
 
-**macOS/Linux:**
-```json
-{
-  "statusLine": {
-    "type": "command",
-    "command": "~/.claude_code_tracker/statusline.sh"
-  }
-}
-```
+This wrapper script intelligently combines the Claude Code Tracker's status output with any existing `statusLine.command` you might have had, using a separator you define during installation.
 
-**Windows (Git Bash/WSL):**
-```json
-{
-  "statusLine": {
-    "type": "command",
-    "command": "bash -c \"source ~/.claude_code_tracker/functions.sh && work_status\""
-  }
-}
-```
-
-The installer will provide the exact `command` value for your system.
-**Important Note:** The installer does NOT automatically modify your `settings.json` file. You must manually add or update the `statusLine` configuration as shown above. If you have an existing Claude Code Tracker status line configuration, replace it with this new snippet.
+**Note:** If you run Claude Code as a different user or in an environment where the installer's paths are not accessible, you may need to manually adjust the `statusLine.command` in your `settings.json` to the correct absolute path of `claude_code_wrapper.sh`.
 
 ## Status Line Display
 
@@ -138,23 +119,23 @@ EDE-123 ⏱️  15m 🪙 0.5k
 
 ## Configuration
 
-The tracker's configuration is stored in `~/.claude_code_config` as key-value pairs.
+The tracker's configuration files are stored in `~/.claude_code_tracker/config/`:
 
-```
-JIRA_PREFIX=EDE
-JIRA_BASE_URL=https://jira.yourcompany.com/browse
-```
+-   `claude_code_jira_config`: Stores `JIRA_BASE_URL`.
+-   `claude_code_jira_regex_config`: Stores `JIRA_TICKET_REGEX`.
+-   `claude_code_statusline_config`: Stores `ORIGINAL_STATUSLINE_COMMAND` and `STATUSLINE_SEPARATOR`.
 
-You can edit this file directly or use the provided commands:
-- `set_ticket_prefix ABC` - Set your default Jira ticket prefix (e.g., `ABC`)
-- `set_jira_base_url https://your-jira.com/browse` - Set your Jira instance's base URL
+You can edit these files directly or use the provided commands:
 
-Supported branch patterns:
-- `feature/EDE-123-description`
-- `chore/2027/EDE-456-cleanup`
-- `feature/w2021/ABC-789-foo`
+-   `set_jira_base_url https://your-jira.com/browse` - Set your Jira instance's base URL.
+-   `set_jira_ticket_regex '[A-Z]+-[0-9]+'` - Set your custom Jira ticket regex. The installer provides an interactive way to generate this.
 
-Pattern: 3 uppercase letters + hyphen + numbers (e.g., ABC-123, XYZ-789)
+Supported branch patterns (example for default regex `[A-Z]+-[0-9]+`):
+-   `feature/EDE-123-description`
+-   `chore/2027/EDE-456-cleanup`
+-   `feature/w2021/ABC-789-foo`
+
+Pattern: One or more uppercase letters, followed by a hyphen, then one or more numbers (e.g., ABC-123, XYZ-789).
 
 ## Windows Support
 
@@ -170,7 +151,7 @@ Pattern: 3 uppercase letters + hyphen + numbers (e.g., ABC-123, XYZ-789)
 1. Install Git for Windows: https://git-scm.com/download/win
 2. Open Git Bash (recommended shell on Windows for this tracker).
 3. Clone and install as shown in Quick Start.
-4. Configure Claude Code `settings.json` as shown in the "Configure Claude Code" section above (using the `bash -c ...` command).
+
 
 ### Troubleshooting Windows
 
@@ -183,9 +164,15 @@ Pattern: 3 uppercase letters + hyphen + numbers (e.g., ABC-123, XYZ-789)
 
 ## Apply Hooks to Existing Repos
 
-After installation, apply git hooks to your existing repositories:
+For a single repository, the preferred method is to use the `tracker init` command from within that repository:
+```bash
+cd your-repo
+tracker init
+```
 
-**Single repo:**
+Alternatively, you can manually copy the hooks:
+
+**Single repo (manual):**
 ```bash
 cd your-repo
 rm -rf .git/hooks
@@ -200,7 +187,7 @@ find ~/projects -name .git -type d -exec bash -c 'rm -rf {}/hooks && cp -r ~/.gi
 ## File Locations
 
 - Work sessions: `~/.claude_code_tracker/data/work/TICKET-123.json`
-- Configuration: `~/.claude_code_tracker/config/claude_code_config` (key-value pairs for JIRA_PREFIX, JIRA_BASE_URL)
+- Configuration: `~/.claude_code_tracker/config/` (contains `claude_code_jira_config`, `claude_code_jira_regex_config`, `claude_code_statusline_config`)
 - Installation: `~/.claude_code_tracker/`
 - Git hooks: `~/.git-templates/hooks/`
 

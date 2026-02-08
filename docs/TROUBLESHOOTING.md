@@ -6,14 +6,14 @@
 
 #### "Command not found: work_start"
 
-**Problem:** After installation, commands are not recognized.
+**Problem:** After installation, commands like `work_start` are not recognized.
 
 **Solution:**
 ```bash
 # Reload your shell configuration
 source ~/.bashrc       # for bash
 source ~/.zshrc        # for zsh  
-source ~/.bash_profile # for Git Bash on Windows
+source ~/.bash_profile # for Git Bash on Windows (or where you sourced functions.sh)
 
 # Or restart your terminal
 ```
@@ -26,7 +26,7 @@ type work_start
 
 #### "Permission denied" during installation
 
-**Problem:** Install script is not executable.
+**Problem:** `install.sh` script is not executable.
 
 **Solution:**
 ```bash
@@ -34,116 +34,145 @@ chmod +x install.sh
 ./install.sh
 ```
 
-#### Git hooks not installed
+#### Git hooks not working or missing ticket references in commits
 
-**Problem:** Commit messages don't get ticket references.
+**Problem:** Commit messages don't get ticket references automatically, or the hook isn't installed.
 
 **Solution:**
-Check global git template is configured:
-```bash
-git config --global init.templateDir
-# Should output: ~/.git-templates
 
-# If not set:
-git config --global init.templateDir ~/.git-templates
-```
+1.  **Ensure global git template is configured (done by installer):**
+    ```bash
+    git config --global init.templateDir
+    # Should output: ~/.git-templates
+    ```
+    If not set, re-run `install.sh` or set it manually:
+    ```bash
+    git config --global init.templateDir ~/.git-templates
+    ```
 
-For existing repos, apply hooks manually:
-```bash
-cd your-repo
-rm -rf .git/hooks
-cp -r ~/.git-templates/hooks .git/
-```
+2.  **For *new* repositories created after installation**, the hook should be automatically applied.
+
+3.  **For *existing* repositories**, you need to initialize the hooks:
+    ```bash
+    cd your-existing-repo
+    tracker init
+    ```
+    Alternatively, you can manually copy the hooks (this will overwrite any custom hooks):
+    ```bash
+    cd your-existing-repo
+    rm -rf .git/hooks
+    cp -r ~/.git-templates/hooks .git/
+    ```
+
+4.  **Verify the hook exists and is executable in your repository:**
+    ```bash
+    ls -la .git/hooks/prepare-commit-msg
+    # Should exist and have execute permissions (e.g., -rwxr-xr-x)
+    ```
 
 ### Status Line Issues
 
-#### Status line not showing
+#### Claude Code status line not showing tracker info
 
-**Problem:** Prompt doesn't display work tracking.
+**Problem:** Claude Code's status line is not displaying the tracker information (ticket, time, tokens).
 
 **Possible causes and solutions:**
 
-1. **Not in a git repository**
-   ```bash
-   git status
-   # If error, you're not in a git repo
-   ```
+1.  **Tracker not active in current Git repository/branch:**
+    *   Ensure you are inside a Git repository (`git status`).
+    *   Ensure your current branch name contains a detected Jira ticket number. You can verify this manually:
+        ```bash
+        work_status
+        # If it says "⚠️ No ticket in branch name" or "💤 (no activity)", it's not active.
+        ```
+    *   If no ticket is found, check your branch name against the configured regex.
 
-2. **No ticket in branch name**
-   ```bash
-   git branch --show-current
-   # Check if it contains XXX-123 pattern
-   ```
+2.  **Claude Code `settings.json` not configured correctly:**
+    *   The `install.sh` script automatically configures `settings.json`. Verify the `statusLine.command` entry:
+        ```bash
+        # macOS/Linux
+        cat ~/.claude/settings.json
+        
+        # Windows
+        type C:\Users\YourUsername\.claude\settings.json
+        ```
+        It should point to `~/.claude/scripts/claude_code_wrapper.sh`.
+    *   Manually test the wrapper script:
+        ```bash
+        ~/.claude/scripts/claude_code_wrapper.sh
+        ```
+        This should output the status line information. If not, there's an issue with the script or its dependencies (`functions.sh`, `jq`).
 
-3. **Status line disabled**
-   ```bash
-   work_toggle_status
-   ```
+3.  **Claude Code needs a restart:** After installation or configuration changes, restart Claude Code.
 
-4. **PS1 was modified elsewhere**
-   ```bash
-   work_restore_ps1
-   work_reconfigure_status
-   ```
+#### Claude Code status line shows "No ticket in branch name"
 
-#### Status line shows "No ticket in branch name"
-
-**Problem:** Valid branch name but ticket not detected.
-
-**Solution:**
-Ticket must match pattern: 3 uppercase letters + hyphen + numbers
-
-Valid: `EDE-123`, `ABC-456`
-Invalid: `ede-123`, `ED-123`, `EDIT-123`
-
-Rename your branch:
-```bash
-git branch -m feature/EDE-123-description
-```
-
-#### Duplicated status line after re-installation
-
-**Problem:** Status shows twice in prompt.
+**Problem:** Your branch name *seems* valid, but the tracker isn't detecting the ticket.
 
 **Solution:**
-```bash
-# Restore original PS1
-work_restore_ps1
+The ticket detection uses a regular expression which is configurable.
 
-# Remove duplicate entry from shell config
-nano ~/.bashrc  # or ~/.zshrc
+1.  **Check your current branch name:**
+    ```bash
+    git branch --show-current
+    ```
 
-# Look for multiple lines with:
-# source ~/.claude_code_tracker/functions.sh
-# Keep only one
+2.  **Check the configured Jira ticket regex:**
+    ```bash
+    # This will output the regex currently in use
+    source ~/.claude_code_tracker/functions.sh && get_jira_ticket_regex
+    ```
+    Ensure your branch name matches this regex.
 
-# Reload shell
-source ~/.bashrc
-```
+3.  **Update the regex if needed:** Use the `set_jira_ticket_regex` command or edit `~/.claude_code_tracker/config/claude_code_jira_regex_config` directly. For example:
+    ```bash
+    set_jira_ticket_regex '[A-Z]+-[0-9]+' # For patterns like ABC-123
+    ```
+
+#### Duplicated status line entry in Claude Code
+
+**Problem:** Claude Code's status line shows the tracker information multiple times.
+
+**Solution:**
+This usually indicates an issue with `settings.json` or a previous manual configuration.
+
+1.  **Check `settings.json`:**
+    ```bash
+    # macOS/Linux
+    cat ~/.claude/settings.json
+    
+    # Windows
+    type C:\Users\YourUsername\.claude/settings.json
+    ```
+    Ensure there is only one `statusLine` entry, and that its `command` correctly points to `~/.claude/scripts/claude_code_wrapper.sh`. If you have duplicate `statusLine` entries, remove the incorrect ones. The installer is designed to update this cleanly, but manual edits can cause issues.
+
+2.  **Contact Support:** If the issue persists, report it to the developers.
 
 ### Session Tracking Issues
 
-#### Session doesn't auto-start
+#### Session doesn't auto-start when changing directories
 
-**Problem:** Entering a directory doesn't start tracking.
+**Problem:** Entering a new Git repository directory (with a ticket in the branch name) doesn't start or resume tracking.
 
 **Solution:**
 
-1. **Check if auto-detect is running:**
-   ```bash
-   echo $PROMPT_COMMAND | grep auto_work_detect
-   # Should show auto_work_detect in the output
-   ```
+1.  **Check if auto-detection is configured in your shell:**
+    ```bash
+    echo $PROMPT_COMMAND | grep auto_work_detect
+    # (for Bash) Should show 'auto_work_detect' in the output.
+    # (for Zsh) Check ~/.zshrc for `precmd()` function calling `auto_work_detect`.
+    ```
+    If it's not configured, ensure `source ~/.claude_code_tracker/functions.sh` is in your shell's startup file (`.bashrc`, `.zshrc`, etc.) and reload your shell.
 
-2. **Manually start:**
-   ```bash
-   work_start
-   ```
+2.  **Manually start a session:**
+    ```bash
+    work_start
+    ```
 
-3. **Reload shell config:**
-   ```bash
-   source ~/.bashrc
-   ```
+3.  **Reload shell config:**
+    ```bash
+    source ~/.bashrc # or appropriate config file
+    ```
 
 #### Session shows "no activity"
 
@@ -233,76 +262,36 @@ git branch --show-current
 
 ### Platform-Specific Issues
 
-#### Windows / Git Bash
+#### Windows (Git Bash / WSL)
 
-**Problem:** Slow performance
+**Problem:** Performance is slower than native Linux/macOS.
 
-**Cause:** MSYS2 overhead is normal.
+**Cause:** Overhead of Git Bash (MSYS2) or WSL emulation.
 
-**Solution:**
-- This is expected behavior
-- Consider WSL for better performance
-- Or accept the slight delay
+**Solution:** This is expected behavior. For optimal performance, native Linux or macOS environments are preferred. WSL generally offers better performance than Git Bash.
 
-**Problem:** Links not clickable
+**Problem:** Links in terminal not clickable.
 
-**Solution:**
-Use Windows Terminal:
-```bash
-# Install Windows Terminal from Microsoft Store
-# Set Git Bash as default profile
-```
-
-Or use command:
-```bash
-jira_open
-```
-
-**Problem:** Date formatting errors
-
-**Cause:** Git Bash `date` command differences.
-
-**Solution:**
-Already handled in the code with fallbacks. If you still see errors:
-```bash
-# Verify date command works
-date +%s
-date -d "@$(date +%s)" "+%Y-%m-%d"
-```
+**Solution:** Use Windows Terminal, which supports clickable links. Alternatively, use the `jira_open` command to manually open the link in your default browser.
 
 #### macOS
 
-**Problem:** `sed: invalid command code` error
+**Problem:** `sed: invalid command code` errors.
 
-**Cause:** macOS `sed` syntax differences.
+**Cause:** macOS's BSD `sed` has different syntax than GNU `sed` (often used on Linux).
 
-**Solution:**
-Already handled in code. If issues persist:
-```bash
-# Install GNU sed
-brew install gnu-sed
+**Solution:** The tracker's scripts are designed with cross-platform `sed` compatibility in mind. If you encounter this, ensure your `PATH` prioritizes GNU `sed` if you have it installed (e.g., via `brew install gnu-sed`).
 
-# Add to PATH in ~/.bashrc or ~/.zshrc
-export PATH="/usr/local/opt/gnu-sed/libexec/gnubin:$PATH"
-```
+#### WSL (Windows Subsystem for Linux)
 
-#### WSL
-
-**Problem:** `jira_open` doesn't work
-
-**Cause:** Need to call Windows browser from Linux.
+**Problem:** `jira_open` doesn't open the browser on the Windows host.
 
 **Solution:**
-Install `wslview`:
+Ensure you have `wslu` installed, which provides the `wslview` command for opening Windows applications from WSL:
 ```bash
-sudo apt install wslu
+sudo apt update && sudo apt install wslu
 ```
-
-Or use Windows path:
-```bash
-# Edit functions.sh to use:
-/mnt/c/Program\ Files/Google/Chrome/Application/chrome.exe "$jira_url"
-```
+The `jira_open` function is designed to use `wslview` if available, or fall back to other methods to open the browser on the Windows host.
 
 ### Data and File Issues
 
@@ -312,23 +301,23 @@ Or use Windows path:
 
 **Solution:**
 
-1. **Check work directory:**
-   ```bash
-   ls -la ~/.claude_code_work/
-   ```
+1.  **Check work directory:**
+    ```bash
+    ls -la ~/.claude_code_tracker/data/work/
+    ```
 
-2. **Check permissions:**
-   ```bash
-   ls -ld ~/.claude_code_work/
-   # Should be writable
-   ```
+2.  **Check permissions:**
+    ```bash
+    ls -ld ~/.claude_code_tracker/data/work/
+    # Should be writable
+    ```
 
-3. **Verify ticket file:**
-   ```bash
-   # For current ticket
-   ticket=$(git branch --show-current | grep -oE '[A-Z]{3}-[0-9]+')
-   cat ~/.claude_code_work/${ticket}.json
-   ```
+3.  **Verify ticket file:**
+    ```bash
+    # For current ticket
+    ticket=$(git branch --show-current | grep -oE "$(source ~/.claude_code_tracker/functions.sh && get_jira_ticket_regex)")
+    cat ~/.claude_code_tracker/data/work/${ticket}.json
+    ```
 
 #### Corrupted session file
 
@@ -336,34 +325,35 @@ Or use Windows path:
 
 **Solution:**
 
-1. **View the file:**
-   ```bash
-   cat ~/.claude_code_work/EDE-123.json
-   ```
+1.  **View the file:**
+    ```bash
+    ticket=$(git branch --show-current | grep -oE "$(source ~/.claude_code_tracker/functions.sh && get_jira_ticket_regex)")
+    cat ~/.claude_code_tracker/data/work/${ticket}.json
+    ```
 
-2. **Fix manually or delete:**
-   ```bash
-   # Backup first
-   cp ~/.claude_code_work/EDE-123.json ~/.claude_code_work/EDE-123.json.bak
-   
-   # Delete corrupted file
-   rm ~/.claude_code_work/EDE-123.json
-   
-   # Start fresh
-   work_start
-   ```
+2.  **Fix manually or delete:**
+    ```bash
+    # Backup first
+    cp ~/.claude_code_tracker/data/work/${ticket}.json ~/.claude_code_tracker/data/work/${ticket}.json.bak
+    
+    # Delete corrupted file
+    rm ~/.claude_code_tracker/data/work/${ticket}.json
+    
+    # Start fresh
+    work_start
+    ```
 
 #### Lost work history after uninstall
 
 **Problem:** Uninstalled and lost all tracking data.
 
 **Solution:**
-Work history is in `~/.claude_code_work/`. If you deleted it during uninstall, it's gone.
+Work history is in `~/.claude_code_tracker/data/work/`. If you chose to delete it during uninstall, it's gone.
 
 **Prevention:**
 ```bash
 # Before uninstalling, backup work history
-cp -r ~/.claude_code_work ~/claude_work_backup
+cp -r ~/.claude_code_tracker/data/work ~/claude_work_backup
 ```
 
 ### Integration Issues
@@ -374,41 +364,33 @@ cp -r ~/.claude_code_work ~/claude_work_backup
 
 **Solution:**
 
-1. **Check if gh is installed:**
-   ```bash
-   which gh
-   gh --version
-   ```
+1.  **Check if gh is installed:**
+    ```bash
+    which gh
+    gh --version
+    ```
 
-2. **Verify function override:**
-   ```bash
-   type gh
-   # Should show it's a function, not just the binary
-   ```
+2.  **Verify function override:**
+    ```bash
+    type gh
+    # Should show it's a function, not just the binary
+    ```
 
-3. **Reload shell:**
-   ```bash
-   source ~/.bashrc
-   ```
+3.  **Reload shell:**
+    ```bash
+    source ~/.bashrc # or appropriate config file
+    ```
 
 #### Jira URL is wrong
 
-**Problem:** `jira_open` opens wrong URL.
+**Problem:** `jira_open` opens the wrong URL.
 
 **Solution:**
-Edit the Jira URL in functions.sh:
+Use the `set_jira_base_url` command to update your Jira base URL:
 ```bash
-nano ~/.claude_code_tracker/src/functions.sh
-
-# Find this line:
-local jira_url="https://jira.yourcompany.com/browse/$ticket"
-
-# Change to your Jira instance:
-local jira_url="https://yourcompany.atlassian.net/browse/$ticket"
-
-# Reload:
-source ~/.bashrc
+set_jira_base_url https://your-jira.com/browse
 ```
+Alternatively, you can edit the configuration file `~/.claude_code_tracker/config/claude_code_jira_config` directly.
 
 ## Getting More Help
 
@@ -432,12 +414,13 @@ Verify all components:
 ```bash
 # Check files exist
 ls -la ~/.claude_code_tracker/
-ls -la ~/.claude_code_work/
+ls -la ~/.claude_code_tracker/data/work/
 ls -la ~/.git-templates/hooks/
 
 # Check configuration
-cat ~/.claude_code_config
-cat ~/.claude_code_tracker/config/status_line_config.sh
+cat ~/.claude_code_tracker/config/claude_code_jira_config
+cat ~/.claude_code_tracker/config/claude_code_jira_regex_config
+cat ~/.claude_code_tracker/config/claude_code_statusline_config
 
 # Check shell integration
 grep claude_code_tracker ~/.bashrc  # or ~/.zshrc
@@ -455,69 +438,26 @@ cd claude-code-tracker
 
 # Reinstall
 ./install.sh
-source ~/.bashrc
+source ~/.bashrc # or appropriate config file
 ```
 
 ### Report an Issue
 
 If you've tried everything and still have issues:
 
-1. Include in your report:
-   - Operating system and version
-   - Shell (bash/zsh) and version
-   - Output of `work_status`
-   - Error messages
-   - Steps to reproduce
+1.  Include in your report:
+    *   Operating system and version
+    *   Shell (bash/zsh) and version
+    *   Output of `work_status`
+    *   Error messages
+    *   Steps to reproduce
 
-2. Check existing issues on GitHub
+2.  Check existing issues on GitHub
 
-3. Create a new issue with the "bug" label
-
-## Performance Issues
-
-### Slow prompt update
-
-**Problem:** Status line updates slowly.
-
-**Cause:** Running calculations on every prompt.
-
-**Solution:**
-This is expected behavior. Each update:
-- Reads ticket file
-- Calculates duration
-- Formats tokens
-
-For faster prompts:
-```bash
-# Disable status line
-work_toggle_status
-
-# Or use manual mode
-work_reconfigure_status  # Choose option 3
-```
-
-### Large session files
-
-**Problem:** Session file is very large.
-
-**Cause:** Many sessions recorded.
-
-**Solution:**
-Session files grow with each session but should remain small (<100KB).
-
-If larger:
-```bash
-# Check file size
-ls -lh ~/.claude_code_work/EDE-123.json
-
-# Archive old sessions
-mv ~/.claude_code_work/EDE-123.json ~/.claude_code_work/EDE-123.json.archive
-work_start  # Creates new file
-```
+3.  Create a new issue with the "bug" label
 
 ## Still Having Issues?
 
-1. Check the [GitHub Issues](https://github.com/yourusername/claude-code-tracker/issues)
-2. Review the [Usage Guide](USAGE.md)
-3. Read the [Installation Guide](INSTALLATION.md)
-4. Open a new issue with details
+1.  Check the [GitHub Issues](https://github.com/samuelfa/claude-code-tracker/issues)
+2.  Review the [Usage Guide](USAGE.md)
+3.  Open a new issue with details

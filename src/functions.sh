@@ -511,6 +511,8 @@ jira_open() {
     echo "✓ Opened $ticket in browser"
 }
 
+
+
 # ============================================================================
 # Auto-Detection Functions
 # ============================================================================
@@ -565,6 +567,56 @@ gh() {
     fi
     
     return $exit_code
+}
+
+# ============================================================================
+# Tracker Command Line Interface (CLI)
+# ============================================================================
+
+# Helper function for initializing repo hooks
+_tracker_init_repo() { # Renamed from tracker_init_repo
+    if ! git rev-parse --is-inside-work-tree > /dev/null 2>&1; then
+        echo "⚠️  Not inside a Git repository."
+        echo "   Please navigate to the root of your Git repository and try again."
+        return 1
+    fi
+
+    local git_root=$(git rev-parse --show-toplevel)
+    local hooks_dir="$git_root/.git/hooks"
+    local global_template_hook="$HOME/.git-templates/hooks/prepare-commit-msg"
+    local local_hook="$hooks_dir/prepare-commit-msg"
+
+    mkdir -p "$hooks_dir"
+
+    if [ -f "$global_template_hook" ]; then
+        cp "$global_template_hook" "$local_hook"
+        chmod +x "$local_hook"
+        echo "✓ Git 'prepare-commit-msg' hook installed for current repository: $local_hook"
+    else
+        echo "⚠️  Global Git template hook not found at $global_template_hook."
+        echo "   Please ensure the Claude Code Tracker is fully installed."
+        return 1
+    fi
+}
+
+
+tracker() {
+    local subcommand=$1
+    shift # Remove the subcommand from the arguments list
+
+    case "$subcommand" in
+        "init")
+            _tracker_init_repo "$@"
+            ;;
+        # Add other subcommands here as needed
+        *)
+            echo "Usage: tracker <subcommand>"
+            echo "Subcommands:"
+            echo "  init      - Initialize Git hooks for the current repository"
+            # Add descriptions for other subcommands here
+            return 1
+            ;;
+    esac
 }
 
 # ============================================================================

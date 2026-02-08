@@ -4,14 +4,14 @@
 
 ### 1. Start Working on a Ticket
 
-Create a branch with a ticket number (3 uppercase letters + hyphen + numbers):
+Create a branch with a ticket number matching your configured regex (e.g., `[A-Z]+-[0-9]+`):
 
 ```bash
 git checkout -b feature/EDE-123-new-authentication
 # ▶️  Started new work on EDE-123
 ```
 
-Supported patterns:
+Supported patterns (example for default `[A-Z]+-[0-9]+`):
 - `feature/EDE-123-description`
 - `bugfix/ABC-456-fix`
 - `chore/2027/XYZ-789-cleanup`
@@ -20,15 +20,14 @@ Supported patterns:
 The tracker automatically:
 - Detects the ticket number
 - Starts a new session
-- Shows tracking in your status line
+- Shows tracking in your Claude Code status line
 
 ### 2. Work on Your Code
 
-Your status line shows real-time tracking:
+Your Claude Code status line shows real-time tracking:
 
 ```
 EDE-123 ⏱️  15m 🪙 2.5k
-~/my-project $
 ```
 
 - `EDE-123` - Ticket number
@@ -144,51 +143,25 @@ work_view  # Uses current ticket
 
 ### Configuration
 
-#### `set_ticket_prefix <PREFIX>`
-Set the default ticket prefix.
+#### `set_jira_base_url <URL>`
+Set your Jira instance's base URL.
 
 ```bash
-set_ticket_prefix ABC
-# ✓ Ticket prefix set to: ABC
+set_jira_base_url https://your-jira.com/browse
+# ✓ JIRA base URL set to: https://your-jira.com/browse
 ```
 
-Stored in `~/.claude_code_config`.
+This updates the `~/.claude_code_tracker/config/claude_code_jira_config` file.
 
-#### `work_reconfigure_status`
-Change how the status line is displayed.
+#### `set_jira_ticket_regex <REGEX>`
+Set the regular expression used to detect Jira ticket numbers.
 
 ```bash
-work_reconfigure_status
-# Current mode: 1
-# 
-# 1. New line above prompt
-# 2. Same line as prompt
-# 3. Manual (don't modify PS1)
-# 
-# Choose option (1-3): 2
-# ✓ Status line mode updated to: 2
+set_jira_ticket_regex '[A-Z]+-[0-9]+'
+# ✓ JIRA ticket regex set to: [A-Z]+-[0-9]+
 ```
 
-### Status Line Control
-
-#### `work_toggle_status`
-Toggle status line on/off.
-
-```bash
-work_toggle_status
-# Status line: OFF
-
-work_toggle_status
-# Status line: ON
-```
-
-#### `work_restore_ps1`
-Restore your original prompt (before tracker was installed).
-
-```bash
-work_restore_ps1
-# ✓ Restored original PS1
-```
+This updates the `~/.claude_code_tracker/config/claude_code_jira_regex_config` file.
 
 ### Jira Integration
 
@@ -202,11 +175,7 @@ jira_open EDE-123
 jira_open  # Opens current ticket
 ```
 
-Configure your Jira URL by editing the `jira_url` variable in `~/.claude_code_tracker/src/functions.sh`:
-
-```bash
-local jira_url="https://your-company.atlassian.net/browse/$ticket"
-```
+Configure your Jira URL using the `set_jira_base_url` command.
 
 ## Status Line States
 
@@ -243,11 +212,11 @@ Not in a git repository.
 ## File Storage
 
 ### Session Data
-Work sessions are stored in: `~/.claude_code_work/`
+Work sessions are stored in: `~/.claude_code_tracker/data/work/`
 
 Each ticket has its own JSON file:
 ```
-~/.claude_code_work/
+~/.claude_code_tracker/data/work/
 ├── EDE-123.json
 ├── EDE-456.json
 └── ABC-789.json
@@ -268,8 +237,10 @@ Each ticket has its own JSON file:
 - Following lines: Session records (one per line)
 
 ### Configuration
-- Ticket prefix: `~/.claude_code_config`
-- Status line mode: `~/.claude_code_tracker/config/status_line_config.sh`
+Configuration files are stored in `~/.claude_code_tracker/config/`:
+- `claude_code_jira_config`: Stores the Jira base URL.
+- `claude_code_jira_regex_config`: Stores the regular expression for Jira ticket detection.
+- `claude_code_statusline_config`: Stores Claude Code status line preferences.
 
 ## Git Integration
 
@@ -302,17 +273,17 @@ Refs: EDE-123
 
 ### Branch Name Requirements
 
-Valid patterns (3 uppercase letters + hyphen + numbers):
+Valid patterns will depend on your configured `JIRA_TICKET_REGEX`. By default, this is one or more uppercase letters + hyphen + one or more numbers:
 - ✅ `feature/EDE-123-description`
 - ✅ `bugfix/ABC-999-fix`
 - ✅ `chore/2027/XYZ-456-task`
 - ✅ `feat/EDE-1-start`
 
-Invalid patterns:
-- ❌ `feature/ede-123` (lowercase)
-- ❌ `feature/ED-123` (only 2 letters)
-- ❌ `feature/EDIT-123` (4 letters)
+Invalid patterns (for the default regex):
+- ❌ `feature/ede-123` (lowercase prefix)
+- ❌ `feature/ED-123` (only 2 letters, if regex expects more)
 - ❌ `feature/123` (no prefix)
+You can customize the regex using the `set_jira_ticket_regex` command.
 
 ## Advanced Usage
 
@@ -396,11 +367,9 @@ work_summary  # Current ticket details
 ```
 
 ### 4. Jira URL Configuration
-Update the Jira URL to match your company:
+Update the Jira URL to match your company using the `set_jira_base_url` command:
 ```bash
-# Edit ~/.claude_code_tracker/src/functions.sh
-# Find and update:
-local jira_url="https://your-company.atlassian.net/browse/$ticket"
+set_jira_base_url https://your-company.atlassian.net/browse
 ```
 
 ### 5. Commit Message Editing

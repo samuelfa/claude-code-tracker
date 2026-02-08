@@ -5,7 +5,7 @@
 ### Step 1: Install the Tracker
 
 ```bash
-git clone https://github.com/yourusername/claude-code-tracker.git
+git clone https://github.com/samuelfa/claude-code-tracker.git
 cd claude-code-tracker
 ./install.sh
 ```
@@ -16,51 +16,27 @@ The installer will:
 - Set up git hooks
 - Show you the exact command for your platform
 
-### Step 2: Configure Claude Code
+### Step 2: Configure Claude Code (Automatic)
 
-#### macOS / Linux
+The `install.sh` script automatically configures your Claude Code `settings.json` to integrate the tracker. It sets the `statusLine.command` to use `~/.claude/scripts/claude_code_wrapper.sh`.
 
-Add to `~/.claude/settings.json`:
+This wrapper script intelligently combines the Claude Code Tracker's status output with any existing `statusLine.command` you might have had, using a separator you define during installation.
 
-```json
-{
-  "statusLine": {
-    "type": "command",
-    "command": "/Users/your-username/.claude/scripts/statusline.sh"
-  }
-}
-```
-
-Replace `/Users/your-username` with your actual home directory path.
-
-#### Windows
-
-Add to `C:\Users\YourUsername\.claude\settings.json`:
-
-```json
-{
-  "statusLine": {
-    "type": "command",
-    "command": "powershell -NoProfile -ExecutionPolicy Bypass -File C:\\Users\\YourUsername\\.claude\\scripts\\statusline.ps1"
-  }
-}
-```
-
-Replace `YourUsername` with your Windows username.
+**Note:** If you run Claude Code as a different user or in an environment where the installer's paths are not accessible, you may need to manually verify the `statusLine.command` in your `settings.json` points to the correct absolute path of `claude_code_wrapper.sh`.
+You can find your `settings.json` at:
+- macOS/Linux: `~/.claude/settings.json`
+- Windows: `C:\Users\YourUsername\.claude\settings.json`
 
 ### Step 3: Test the Setup
 
 1. **Test the status line script:**
 
-   **macOS/Linux:**
+   **macOS/Linux/Windows (Git Bash/WSL):**
    ```bash
-   ~/.claude/scripts/statusline.sh
+   ~/.claude/scripts/claude_code_wrapper.sh
    ```
+   This script is a Bash script and runs correctly in Git Bash/WSL on Windows.
 
-   **Windows:**
-   ```powershell
-   powershell -NoProfile -ExecutionPolicy Bypass -File C:\Users\YourUsername\.claude\scripts\statusline.ps1
-   ```
 
 2. **Create a test branch:**
    ```bash
@@ -95,21 +71,22 @@ git checkout -b feature/EDE-123-new-feature
 
 ## Ticket Number Format
 
-The tracker detects tickets from branch names using this pattern:
+The tracker detects tickets from branch names using a configurable regular expression. By default, it looks for patterns like:
 
-**Valid:** 3 uppercase letters + hyphen + numbers
+**Default Pattern:** One or more uppercase letters + hyphen + one or more numbers
 
-Examples:
+Examples (for default pattern):
 - ✅ `feature/EDE-123-description`
 - ✅ `bugfix/ABC-456-fix`
 - ✅ `chore/2027/XYZ-789-cleanup`
 - ✅ `feat/w2021/DEV-111-task`
 
-Invalid:
-- ❌ `feature/ede-123` (lowercase)
-- ❌ `feature/ED-123` (only 2 letters)
-- ❌ `feature/EDIT-123` (4 letters)
+Invalid (for default pattern):
+- ❌ `feature/ede-123` (lowercase prefix)
+- ❌ `feature/ED-123` (only 2 letters, if regex expects more)
 - ❌ `feature/123` (no prefix)
+
+You can customize the regex using the `set_jira_ticket_regex` command during installation or anytime afterwards.
 
 ## Per-Project Configuration
 
@@ -122,7 +99,7 @@ cat > .claude/settings.json <<EOF
 {
   "statusLine": {
     "type": "command",
-    "command": "/Users/your-username/.claude/scripts/statusline.sh"
+    "command": "/Users/your-username/.claude/scripts/claude_code_wrapper.sh"
   }
 }
 EOF
@@ -132,52 +109,59 @@ EOF
 
 ### Status line not showing
 
-1. **Check Claude Code settings location:**
-   ```bash
-   # macOS/Linux
-   cat ~/.claude/settings.json
-   
-   # Windows
-   type C:\Users\YourUsername\.claude\settings.json
-   ```
 
-2. **Test script manually:**
-   ```bash
-   # macOS/Linux
-   ~/.claude/scripts/statusline.sh
-   
-   # Windows
-   powershell -NoProfile -ExecutionPolicy Bypass -File C:\Users\YourUsername\.claude\scripts\statusline.ps1
-   ```
 
-3. **Check if script is executable (macOS/Linux):**
-   ```bash
-   chmod +x ~/.claude/scripts/statusline.sh
-   ```
+1.  **Check Claude Code settings location:**
 
-4. **Restart Claude Code** after changing settings.json
+    ```bash
+
+    # macOS/Linux
+
+    cat ~/.claude/settings.json
+
+    
+
+    # Windows
+
+    type C:\Users\YourUsername\.claude\settings.json
+
+    ```
+
+
+
+2.  **Test wrapper script manually:**
+
+    ```bash
+
+    # macOS/Linux/Windows (Git Bash/WSL)
+
+    ~/.claude/scripts/claude_code_wrapper.sh
+
+    ```
+
+
+
+3.  **Check if script is executable (macOS/Linux):**
+
+    ```bash
+
+    chmod +x ~/.claude/scripts/claude_code_wrapper.sh
+
+    ```
+
+
+
+4.  **Restart Claude Code** after changing settings.json
 
 ### Script errors
 
-**Error: "git: command not found"** (Windows PowerShell)
-- Git is not in PATH
-- Add Git to PATH or use full path in statusline.ps1:
-  ```powershell
-  $branch = & "C:\Program Files\Git\bin\git.exe" rev-parse --abbrev-ref HEAD 2>$null
-  ```
+**Error: "git: command not found"**
+- Ensure Git is installed and in your system's PATH.
 
 **Error: "Permission denied"** (macOS/Linux)
 - Make script executable:
   ```bash
-  chmod +x ~/.claude/scripts/statusline.sh
-  ```
-
-**Error: "Cannot be loaded because running scripts is disabled"** (Windows)
-- PowerShell execution policy issue
-- The command includes `-ExecutionPolicy Bypass` which should handle this
-- If still issues, run as administrator:
-  ```powershell
-  Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
+  chmod +x ~/.claude/scripts/claude_code_wrapper.sh
   ```
 
 ### Status shows wrong information
@@ -196,33 +180,19 @@ EOF
 
 ### Custom Jira URL
 
-Edit `~/.claude_code_tracker/src/functions.sh`:
-
+Use the `set_jira_base_url` command to configure your Jira instance's base URL:
 ```bash
-# Find this line (around line 355):
-local jira_url="https://jira.yourcompany.com/browse/$ticket"
-
-# Change to your Jira instance:
-local jira_url="https://yourcompany.atlassian.net/browse/$ticket"
+set_jira_base_url https://yourcompany.atlassian.net/browse
 ```
+Alternatively, you can edit the file `~/.claude_code_tracker/config/claude_code_jira_config` directly.
 
-Then update the status line scripts to use the new URL.
+### Custom Jira Ticket Regex
 
-### Change Ticket Prefix
-
+Use the `set_jira_ticket_regex` command to configure the regular expression for detecting Jira ticket numbers:
 ```bash
-# Set default prefix
-echo "ABC" > ~/.claude_code_config
-
-# Or use command
-set_ticket_prefix ABC
+set_jira_ticket_regex '[A-Z]+-[0-9]+'
 ```
-
-### Disable Terminal Output
-
-If you only want Claude Code status line (no terminal messages):
-
-Edit `~/.claude_code_tracker/src/functions.sh` and comment out echo statements in `auto_work_detect()`.
+The installer provides an interactive prompt to help you build this regex during setup. You can also edit the file `~/.claude_code_tracker/config/claude_code_jira_regex_config` directly.
 
 ## Status Line Update Frequency
 
